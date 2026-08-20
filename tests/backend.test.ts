@@ -68,9 +68,154 @@ describe("Company AI Hub backend", () => {
     const page = await request(app).get("/").expect(200);
     expect(page.text).not.toContain('id="chat-form"');
     expect(page.text).not.toContain("API 调试");
+    expect(page.text).toContain('id="import-form" class="dialog-form" method="dialog"');
+    const browserScript = await request(app).get("/app.js").expect(200);
+    expect(browserScript.text).toContain("select.checked = false");
+    expect(browserScript.text).not.toContain("select.checked = proposal.verdict === 'RECOMMENDED'");
+    expect(browserScript.text).toContain("关联 Skills");
+    expect(browserScript.text).toContain("安装后立即启用");
+    expect(browserScript.text).toContain("优先级");
+    expect(browserScript.text).toContain("importAbortController?.abort()");
+    expect(browserScript.text).toContain("generation !== state.importGeneration");
+    expect(browserScript.text).toContain("$('#import-proposals').replaceChildren()");
     const admin = request.agent(app);
     const adminCsrf = await login(admin, "admin@example.com", adminPassword);
     await admin.post("/api/chat").set("x-csrf-token", adminCsrf).send({ messages: [{ role: "user", content: "hello" }] }).expect(404);
+  });
+
+  it("never writes malformed JSON request bodies into application logs", async () => {
+    const config = { ...testConfig(), environment: "production" as const, providerHostAllowlist: new Set(["api.example.com"]) };
+    const { app } = await createApp({ config, database: db });
+    const admin = request.agent(app);
+    const adminCsrf = await login(admin, "admin@example.com", adminPassword);
+    const marker = "PRIVATE-CAPABILITY-SOURCE-MARKER";
+    const errorLog = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      await admin
+        .post("/api/admin/capability-import/analyze")
+        .set("x-csrf-token", adminCsrf)
+        .set("content-type", "application/json")
+        .send(`{"sourceText":"${marker}`)
+        .expect(400, { error: { code: "INVALID_JSON", message: "Request body must be valid JSON" } });
+      expect(errorLog).not.toHaveBeenCalled();
+      expect(JSON.stringify(errorLog.mock.calls)).not.toContain(marker);
+      expect(JSON.stringify(errorLog.mock.calls)).not.toContain("sourceText");
+    } finally {
+      errorLog.mockRestore();
+    }
+  });
+
+  it("authenticates and rate-limits capability imports before parsing large bodies", async () => {
+    const config = { ...testConfig(), environment: "production" as const, providerHostAllowlist: new Set(["api.example.com"]) };
+    const { app } = await createApp({ config, database: db });
+    await request(app).post("/api/admin/capability-import/install").set("content-type", "application/json")
+      .send('{"proposals":[').expect(401);
+    for (let attempt = 1; attempt < 12; attempt += 1) {
+      await request(app).post("/api/admin/capability-import/install").send({}).expect(401);
+    }
+    await request(app).post("/api/admin/capability-import/install").send({}).expect(429);
+  });
+
+  it("accepts schema-valid near-limit multilingual proposals for refinement and installation", async () => {
+    const { app } = await createApp({ config: testConfig(), database: db });
+    const admin = request.agent(app);
+    const adminCsrf = await login(admin, "admin@example.com", adminPassword);
+    const proposals = Array.from({ length: 12 }, (_, index) => ({
+      type: "SKILL" as const,
+      slug: `large-skill-${index}`,
+      name: `大型技能 ${index}`,
+      description: "验证合法中文内容不会被运输层拒绝",
+      instructions: "中".repeat(50_000),
+      priority: 100 + index,
+      alwaysOn: false,
+      skillSlugs: [],
+      scores: { overall: 90, clarity: 90, reusability: 90, safety: 90 },
+      verdict: "RECOMMENDED" as const,
+      rationale: "字段均在已定义上限内",
+      risks: [],
+    }));
+    const refine = await admin.post("/api/admin/capability-import/analyze").set("x-csrf-token", adminCsrf)
+      .send({ sourceText: "继续优化这些方案", currentProposals: proposals }).expect(409);
+    expect(refine.body.error.code).toBe("PROVIDER_REQUIRED");
+    const install = await admin.post("/api/admin/capability-import/install").set("x-csrf-token", adminCsrf)
+      .send({ proposals }).expect(201);
+    expect(install.body.capabilities).toHaveLength(12);
+  });
+
+  it("lets only administrators analyze untrusted capability source through the configured provider", async () => {
+    const apiKey = "provider-key-for-capability-analysis";
+    let forwarded: Record<string, unknown> | undefined;
+    const analysis = {
+      summary: "识别出一个可复用测试技能",
+      proposals: [{
+        type: "SKILL", slug: "test-first", name: "测试优先", description: "先测试后实现", instructions: "先编写失败测试，再实现最小修复。",
+        priority: 100, alwaysOn: false, skillSlugs: [],
+        scores: { overall: 92, clarity: 94, reusability: 90, safety: 96 },
+        verdict: "RECOMMENDED", rationale: "边界清晰且可复用", risks: ["需要结合项目测试框架"],
+      }, {
+        type: "AGENT", slug: "quality-engineer", name: "质量工程师", description: "以测试优先方式完成开发", instructions: "先理解需求，再使用已绑定的测试技能。",
+        priority: 110, alwaysOn: false, skillSlugs: ["test-first"],
+        scores: { overall: 89, clarity: 90, reusability: 88, safety: 93 },
+        verdict: "RECOMMENDED", rationale: "Agent 与 Skill 边界明确", risks: [],
+      }],
+    };
+    const fetchSpy = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      expect(new Headers(init?.headers).get("authorization")).toBe(`Bearer ${apiKey}`);
+      forwarded = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      return new Response(JSON.stringify({ output: [{ content: [{ type: "output_text", text: JSON.stringify(analysis) }] }] }), {
+        status: 200, headers: { "content-type": "application/json" },
+      });
+    });
+    const { app } = await createApp({ config: testConfig(), database: db, fetchImpl: fetchSpy as typeof fetch,
+      resolveProviderHost: async () => ["93.184.216.34"] });
+    const admin = request.agent(app);
+    const adminCsrf = await login(admin, "admin@example.com", adminPassword);
+    await admin.put("/api/provider").set("x-csrf-token", adminCsrf)
+      .send({ baseUrl: "https://api.example.com/v1", model: "analysis-model", apiKey }).expect(200);
+    const memberUser = await db.createUser("member@example.com", "Member", memberPassword, "MEMBER");
+    const member = request.agent(app);
+    const memberCsrf = await login(member, memberUser.email, memberPassword);
+    const source = { sourceText: "请把测试优先方法整理成一个 skill", fileName: "idea.md", guidance: "保持简洁" };
+    await member.post("/api/admin/capability-import/analyze").set("x-csrf-token", memberCsrf).send(source).expect(403);
+    const response = await admin.post("/api/admin/capability-import/analyze").set("x-csrf-token", adminCsrf).send(source).expect(200);
+    expect(response.body.analysis).toEqual(analysis);
+    expect(forwarded?.model).toBe("analysis-model");
+    expect(forwarded?.stream).toBe(false);
+    expect(String(forwarded?.instructions)).toContain("untrusted source material");
+    expect(String(forwarded?.input)).toContain("idea.md");
+    expect(String(forwarded?.input)).toContain(source.sourceText);
+    expect(JSON.stringify(response.body)).not.toContain(apiKey);
+    await member.post("/api/admin/capability-import/install").set("x-csrf-token", memberCsrf).send({ proposals: analysis.proposals }).expect(403);
+    const installed = await admin.post("/api/admin/capability-import/install").set("x-csrf-token", adminCsrf)
+      .send({ proposals: analysis.proposals }).expect(201);
+    expect(installed.body.capabilities).toHaveLength(2);
+    const installedSkill = installed.body.capabilities.find((capability: { type: string }) => capability.type === "SKILL");
+    const installedAgent = installed.body.capabilities.find((capability: { type: string }) => capability.type === "AGENT");
+    expect(installedAgent.skillIds).toEqual([installedSkill.id]);
+    const repeated = await admin.post("/api/admin/capability-import/install").set("x-csrf-token", adminCsrf)
+      .send({ proposals: analysis.proposals }).expect(201);
+    expect(repeated.body.capabilities).toHaveLength(0);
+    expect(repeated.body.skippedSlugs).toEqual(expect.arrayContaining(["test-first", "quality-engineer"]));
+    const missingSkillAgent = { ...analysis.proposals[1], slug: "missing-skill-agent", skillSlugs: ["not-installed"] };
+    await admin.post("/api/admin/capability-import/install").set("x-csrf-token", adminCsrf)
+      .send({ proposals: [missingSkillAgent] }).expect(409);
+    expect(db.listCapabilities("COMPANY").some((capability) => capability.slug === "missing-skill-agent")).toBe(false);
+  });
+
+  it("rejects malformed AI capability analysis instead of installing or exposing it", async () => {
+    const fetchSpy = vi.fn(async () => new Response(JSON.stringify({ output_text: "not valid JSON" }), {
+      status: 200, headers: { "content-type": "application/json" },
+    }));
+    const { app } = await createApp({ config: testConfig(), database: db, fetchImpl: fetchSpy as typeof fetch,
+      resolveProviderHost: async () => ["93.184.216.34"] });
+    const admin = request.agent(app);
+    const adminCsrf = await login(admin, "admin@example.com", adminPassword);
+    await admin.put("/api/provider").set("x-csrf-token", adminCsrf)
+      .send({ baseUrl: "https://api.example.com/v1", model: "analysis-model", apiKey: "invalid-analysis-provider-key" }).expect(200);
+    const response = await admin.post("/api/admin/capability-import/analyze").set("x-csrf-token", adminCsrf)
+      .send({ sourceText: "turn this into a skill" }).expect(502);
+    expect(response.body.error.code).toBe("AI_ANALYSIS_INVALID");
+    expect(db.listCapabilities("COMPANY")).toHaveLength(0);
   });
 
   it("reviews an immutable submission snapshot and publishes exactly the reviewed content", async () => {

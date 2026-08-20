@@ -78,7 +78,7 @@
         </section>
 
         <section id="page-company" class="page">
-          <div class="section-head"><div><h3>公司能力库</h3><p>管理所有经过公司 API 的 Codex 模型请求可使用的正式能力。</p></div><button class="primary" data-open-capability data-scope="COMPANY">＋ 发布能力</button></div>
+          <div class="section-head"><div><h3>公司能力库</h3><p>管理所有经过公司 API 的 Codex 模型请求可使用的正式能力。</p></div><div class="section-actions"><button id="open-import" class="secondary">✦ AI 智能创建</button><button class="primary" data-open-capability data-scope="COMPANY">＋ 发布能力</button></div></div>
           <div id="company-list" class="grid-list"></div>
         </section>
 
@@ -119,6 +119,29 @@
         <label id="always-on-field" class="checkbox"><input name="alwaysOn" type="checkbox" checked /> 无需选择 Agent，每次请求都注入</label>
         <label class="checkbox"><input name="enabled" type="checkbox" checked /> 启用</label>
         <div class="dialog-actions"><button type="button" data-close-dialog class="secondary">取消</button><button id="save-capability" type="submit" class="primary">保存</button></div>
+      </form>
+    </dialog>
+
+    <dialog id="import-dialog" class="wide-dialog">
+      <form id="import-form" class="dialog-form" method="dialog">
+        <div class="dialog-head"><div><p class="eyebrow">管理员配置助手</p><h3>AI 智能创建能力</h3><p class="muted">把素材整理为可审核、可评分的 Agent、Skill 或 Prompt 候选项。</p></div><button type="button" data-close-import class="icon-button" aria-label="关闭">×</button></div>
+        <div class="import-layout">
+          <section class="import-source">
+            <label>粘贴文字或现有配置<textarea name="sourceText" rows="12" maxlength="100000" required placeholder="可以粘贴工作规范、Prompt 草稿、Agent 说明、Skill 文档或混合素材…"></textarea></label>
+            <label>或者上传文本文件<input name="sourceFile" type="file" accept=".txt,.md,.markdown,.json,.yaml,.yml,.toml,.xml,.csv,text/plain,text/markdown,application/json" /></label>
+            <p id="import-file-status" class="hint">支持 TXT、Markdown、JSON、YAML、TOML、XML、CSV，最大 100 KB；文件内容不会原样入库。</p>
+            <label>继续补充或调整要求<textarea name="guidance" rows="3" maxlength="10000" placeholder="例如：拆成一个 Agent 和两个 Skill，只保留研发场景…"></textarea></label>
+            <button id="analyze-import" class="primary" type="submit">让 AI 识别并评分</button>
+          </section>
+          <section class="import-results">
+            <div id="import-empty" class="empty">分析结果会显示在这里。评分仅供管理员判断，安装前请检查完整指令和风险。</div>
+            <div id="import-analysis" class="hidden">
+              <p id="import-summary" class="muted"></p>
+              <div id="import-proposals" class="proposal-list"></div>
+            </div>
+          </section>
+        </div>
+        <div class="dialog-actions import-actions"><button type="button" data-close-import class="secondary">关闭</button><button id="install-import" type="button" class="primary hidden">安装所选到公司能力库</button></div>
       </form>
     </dialog>
 

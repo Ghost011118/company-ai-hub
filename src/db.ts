@@ -49,6 +49,10 @@ export interface CapabilityView extends CapabilityInput {
   contributor: Pick<PublicUser, "id" | "email" | "displayName"> | null;
 }
 
+export interface CompanyCapabilityBatchInput extends Omit<CapabilityInput, "skillIds"> {
+  skillSlugs: string[];
+}
+
 export interface ProviderRecord {
   baseUrl: string;
   model: string;
@@ -303,23 +307,57 @@ export class AppDatabase {
     }
   }
 
-  createCapability(input: CapabilityInput, scope: CapabilityScope, ownerUserId: string | null, sourceSubmissionId: string | null = null): CapabilityView {
+  private insertCapability(input: CapabilityInput, scope: CapabilityScope, ownerUserId: string | null, sourceSubmissionId: string | null = null): CapabilityView {
     const id = randomUUID();
     const now = new Date().toISOString();
+    this.raw.prepare(`INSERT INTO capabilities
+      (id, type, scope, owner_user_id, slug, name, description, instructions, enabled, priority, always_on, source_submission_id, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .run(id, input.type, scope, ownerUserId, input.slug, input.name, input.description, input.instructions, input.enabled ? 1 : 0,
+        input.priority, input.alwaysOn ? 1 : 0, sourceSubmissionId, now, now);
+    this.validateBindings(id, input);
+    return this.getCapability(id)!;
+  }
+
+  createCapability(input: CapabilityInput, scope: CapabilityScope, ownerUserId: string | null, sourceSubmissionId: string | null = null): CapabilityView {
     this.raw.exec("BEGIN IMMEDIATE");
     try {
-      this.raw.prepare(`INSERT INTO capabilities
-        (id, type, scope, owner_user_id, slug, name, description, instructions, enabled, priority, always_on, source_submission_id, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-        .run(id, input.type, scope, ownerUserId, input.slug, input.name, input.description, input.instructions, input.enabled ? 1 : 0,
-          input.priority, input.alwaysOn ? 1 : 0, sourceSubmissionId, now, now);
-      this.validateBindings(id, input);
+      const capability = this.insertCapability(input, scope, ownerUserId, sourceSubmissionId);
       this.raw.exec("COMMIT");
+      return capability;
     } catch (error) {
       this.raw.exec("ROLLBACK");
       throw error;
     }
-    return this.getCapability(id)!;
+  }
+
+  createCompanyCapabilityBatch(inputs: CompanyCapabilityBatchInput[]): { created: CapabilityView[]; skippedSlugs: string[] } {
+    const known = new Map(this.listCapabilities("COMPANY").map((capability) => [capability.slug, capability]));
+    const created: CapabilityView[] = [];
+    const skippedSlugs: string[] = [];
+    const ordered = [...inputs].sort((left, right) => Number(left.type === "AGENT") - Number(right.type === "AGENT"));
+    this.raw.exec("BEGIN IMMEDIATE");
+    try {
+      for (const input of ordered) {
+        if (known.has(input.slug)) {
+          skippedSlugs.push(input.slug);
+          continue;
+        }
+        const skillIds = input.skillSlugs.map((skillSlug) => {
+          const skill = known.get(skillSlug);
+          if (!skill || skill.type !== "SKILL") throw new Error(`Missing company skill: ${skillSlug}`);
+          return skill.id;
+        });
+        const capability = this.insertCapability({ ...input, skillIds }, "COMPANY", null);
+        known.set(capability.slug, capability);
+        created.push(capability);
+      }
+      this.raw.exec("COMMIT");
+      return { created, skippedSlugs };
+    } catch (error) {
+      this.raw.exec("ROLLBACK");
+      throw error;
+    }
   }
 
   updateCapability(id: string, input: CapabilityInput): CapabilityView {
