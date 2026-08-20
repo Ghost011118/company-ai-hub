@@ -53,6 +53,17 @@ Employees receive a company gateway credential, not an OpenAI or other upstream 
 - Employees log in, manage personal Agents/Skills/Prompts, and submit them for review. The review queue and company-library management page are administrator-only.
 - The web console is strictly a management plane for configuration, submission, and review. It provides no AI conversation or API-debug chat interface. Employees use AI through local Codex calling the company API directly.
 
+## AI-assisted creation flow
+
+1. An administrator opens the small company-library window, pastes source material, or lets the browser read a supported text file up to 100 KB.
+2. The browser submits text, file name, guidance, and optional previous proposals to an administrator-only analysis endpoint. The server does not store the original file.
+3. The server labels all material as untrusted data and calls the configured upstream `/responses` endpoint for strict JSON output.
+4. The server validates capability types, slugs, lengths, Agent/Skill bindings, 0–100 scores, verdicts, and risks. An invalid provider response is rejected as a whole.
+5. The administrator inspects proposals and can add guidance for another pass. Every proposal is unchecked by default and must be actively selected; `REJECT` items cannot be selected.
+6. After confirmation, selected items install into the company library in one database transaction. Existing slugs are skipped, and any invalid Skill binding rolls back the complete set of new records.
+
+This flow is a constrained capability-authoring assistant, not a general chat surface, and it never executes code found in source material or model output. Source material is sent to the company upstream provider, so that provider's retention and compliance policies still apply.
+
 ## Security boundaries
 
 - Passwords use `scrypt` with per-password salts.

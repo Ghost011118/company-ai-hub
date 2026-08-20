@@ -66,6 +66,7 @@ nav button span { width: 20px; color: var(--green); text-align: center; }
 .page.active { display: block; }
 .hint { font-size: 11px; line-height: 1.6; }
 .section-head { display: flex; align-items: start; justify-content: space-between; margin-bottom: 22px; }
+.section-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 .section-head h3 { margin-bottom: 6px; font: 500 25px Georgia, "Songti SC", serif; }
 .section-head p { color: var(--muted); }
 .grid-list { display: grid; grid-template-columns: repeat(auto-fill,minmax(280px,1fr)); gap: 16px; }
@@ -91,6 +92,7 @@ nav button span { width: 20px; color: var(--green); text-align: center; }
 .user-row small { color: var(--muted); }
 .empty { padding: 46px 20px; border: 1px dashed #cdd6d1; border-radius: 14px; color: var(--muted); text-align: center; }
 dialog { width: min(680px, calc(100% - 32px)); border: 0; border-radius: 18px; padding: 0; box-shadow: 0 30px 90px rgba(0,0,0,.22); }
+dialog.wide-dialog { width: min(1080px, calc(100% - 32px)); }
 dialog::backdrop { background: rgba(14,28,23,.45); backdrop-filter: blur(3px); }
 .dialog-form { display: grid; gap: 16px; padding: 26px; }
 .dialog-head { display: flex; justify-content: space-between; }
@@ -98,6 +100,25 @@ dialog::backdrop { background: rgba(14,28,23,.45); backdrop-filter: blur(3px); }
 .checkbox { display: flex; align-items: center; gap: 8px; }
 .checkbox input { width: auto; }
 .dialog-actions { display: flex; justify-content: end; gap: 10px; }
+.import-layout { display: grid; grid-template-columns: minmax(320px,.8fr) minmax(420px,1.2fr); gap: 20px; min-height: 480px; }
+.import-source { display: grid; align-content: start; gap: 16px; padding-right: 20px; border-right: 1px solid var(--line); }
+.import-results { min-width: 0; max-height: 62vh; overflow-y: auto; }
+.proposal-list { display: grid; gap: 12px; }
+.proposal-card { display: grid; gap: 12px; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: #fbfcfb; }
+.proposal-card.reject { border-color: #e9caca; background: #fff8f8; }
+.proposal-heading { display: grid; grid-template-columns: auto 1fr auto; align-items: start; gap: 10px; }
+.proposal-heading input { width: auto; margin-top: 5px; }
+.proposal-heading h4 { margin: 0 0 4px; }
+.score-total { display: grid; place-items: center; width: 50px; height: 50px; border-radius: 50%; color: white; background: var(--green); font-weight: 800; }
+.score-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; }
+.score-grid span { padding: 7px 8px; border-radius: 8px; color: var(--muted); background: #eef3f0; font-size: 11px; text-align: center; }
+.proposal-instructions { max-height: 150px; overflow: auto; padding: 12px; border-radius: 8px; white-space: pre-wrap; color: #435049; background: #f0f4f1; font: 12px/1.55 ui-monospace, monospace; }
+.proposal-bindings { margin: 0; color: var(--green-dark); font-size: 12px; font-weight: 750; }
+.proposal-install-meta { margin: 0; padding: 8px 10px; border-radius: 8px; color: #52615a; background: #f4f7f5; font-size: 12px; }
+.proposal-risks { margin: 0; padding-left: 20px; color: var(--danger); font-size: 12px; }
+.verdict { width: fit-content; padding: 4px 8px; border-radius: 999px; color: var(--green-dark); background: var(--mint); font-size: 10px; font-weight: 800; }
+.verdict.reject { color: var(--danger); background: #ffe8e8; }
+.import-actions { border-top: 1px solid var(--line); padding-top: 16px; }
 .toast { position: fixed; z-index: 20; right: 24px; top: 20px; max-width: 380px; padding: 12px 16px; border-radius: 10px; color: white; background: #273d35; box-shadow: var(--shadow); opacity: 0; pointer-events: none; transform: translateY(-8px); transition: .2s; }
 .toast.show { opacity: 1; transform: translateY(0); }
 @media (max-width: 980px) {
@@ -109,6 +130,8 @@ dialog::backdrop { background: rgba(14,28,23,.45); backdrop-filter: blur(3px); }
   nav button { justify-content: center; }
   nav button span { font-size: 16px; }
   .two-column, .two-column.narrow { grid-template-columns: 1fr; }
+  .import-layout { grid-template-columns: 1fr; }
+  .import-source { padding-right: 0; padding-bottom: 18px; border-right: 0; border-bottom: 1px solid var(--line); }
 }
 @media (max-width: 640px) {
   .app-shell { display: block; }

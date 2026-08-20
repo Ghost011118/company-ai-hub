@@ -6,6 +6,7 @@ import { z } from "zod";
 import type { AppConfig } from "./config.js";
 import { AppDatabase, type CapabilityInput, type CapabilityView } from "./db.js";
 import { composeCompanySystemPrompt } from "./composition.js";
+import { buildCapabilityAnalysisRequest, capabilityImportBodySchema, capabilityInstallBodySchema, parseCapabilityAnalysis } from "./capability-import.js";
 import { buildProviderUrl, validateProviderBaseUrl, type ProviderPolicy } from "./provider-policy.js";
 import { decryptSecret, encryptSecret, hashPassword, hashToken, randomToken, tokenMatches, verifyPassword } from "./security.js";
 
@@ -44,6 +45,18 @@ class HttpError extends Error {
   constructor(readonly status: number, readonly code: string, message: string) {
     super(message);
   }
+}
+
+function safeErrorForLog(error: unknown): Record<string, unknown> {
+  if (!(error instanceof Error)) return { name: "UnknownError", message: "A non-Error value was thrown" };
+  const metadata = error as Error & { type?: unknown; status?: unknown };
+  return {
+    name: error.name,
+    message: error.message,
+    ...(typeof metadata.type === "string" ? { type: metadata.type } : {}),
+    ...(typeof metadata.status === "number" ? { status: metadata.status } : {}),
+    ...(typeof error.stack === "string" ? { stack: error.stack } : {}),
+  };
 }
 
 export interface CreateAppOptions {
@@ -170,27 +183,14 @@ export async function createApp(options: CreateAppOptions): Promise<{ app: expre
     }
     next();
   };
-
-  const app = express();
-  app.disable("x-powered-by");
-  if (config.trustProxyHops > 0) app.set("trust proxy", config.trustProxyHops);
-  app.use(helmet({ contentSecurityPolicy: { directives: { defaultSrc: ["'self'"], scriptSrc: ["'self'"], styleSrc: ["'self'"], imgSrc: ["'self'", "data:"], connectSrc: ["'self'"] } } }));
-  app.use("/api", rateLimit({ windowMs: 60_000, limit: config.environment === "test" ? 10_000 : 240, standardHeaders: "draft-8", legacyHeaders: false }));
-  app.use("/api/auth/login", rateLimit({ windowMs: 15 * 60_000, limit: config.environment === "test" ? 10_000 : 10, standardHeaders: "draft-8", legacyHeaders: false }));
-  app.use("/v1", rateLimit({ windowMs: 60_000, limit: config.environment === "test" ? 10_000 : 120, standardHeaders: "draft-8", legacyHeaders: false }));
-  app.use("/v1", requireGatewayAuth);
-  app.use("/api", express.json({ limit: "256kb", strict: true }));
-  app.use("/v1", express.json({ limit: "8mb", strict: true }));
-
-  app.use("/api", (req, _res, next) => {
+  const loadSession = (req: Request, _res: Response, next: NextFunction) => {
     const token = parseCookies(req.headers.cookie).hub_session;
     if (token) {
       const auth = db.getSession(hashToken(token));
       if (auth) req.auth = auth;
     }
     next();
-  });
-
+  };
   const requireAuth = (req: Request, _res: Response, next: NextFunction) => {
     if (!req.auth) return next(new HttpError(401, "AUTH_REQUIRED", "Authentication required"));
     next();
@@ -205,6 +205,20 @@ export async function createApp(options: CreateAppOptions): Promise<{ app: expre
     if (!req.auth || !token || !tokenMatches(token, req.auth.csrfHash)) return next(new HttpError(403, "CSRF_INVALID", "CSRF validation failed"));
     next();
   };
+
+  const app = express();
+  app.disable("x-powered-by");
+  if (config.trustProxyHops > 0) app.set("trust proxy", config.trustProxyHops);
+  app.use(helmet({ contentSecurityPolicy: { directives: { defaultSrc: ["'self'"], scriptSrc: ["'self'"], styleSrc: ["'self'"], imgSrc: ["'self'", "data:"], connectSrc: ["'self'"] } } }));
+  app.use("/api", rateLimit({ windowMs: 60_000, limit: config.environment === "test" ? 10_000 : 240, standardHeaders: "draft-8", legacyHeaders: false }));
+  app.use("/api/auth/login", rateLimit({ windowMs: 15 * 60_000, limit: config.environment === "test" ? 10_000 : 10, standardHeaders: "draft-8", legacyHeaders: false }));
+  app.use("/api/admin/capability-import", rateLimit({ windowMs: 60_000, limit: config.environment === "test" ? 10_000 : 12, standardHeaders: "draft-8", legacyHeaders: false }));
+  app.use("/v1", rateLimit({ windowMs: 60_000, limit: config.environment === "test" ? 10_000 : 120, standardHeaders: "draft-8", legacyHeaders: false }));
+  app.use("/v1", requireGatewayAuth);
+  app.use("/api", loadSession);
+  app.use("/api/admin/capability-import", requireAdmin, requireCsrf, express.json({ limit: "8mb", strict: true }));
+  app.use("/api", express.json({ limit: "256kb", strict: true }));
+  app.use("/v1", express.json({ limit: "8mb", strict: true }));
 
   app.post("/api/auth/login", async (req, res, next) => {
     try {
@@ -275,6 +289,55 @@ export async function createApp(options: CreateAppOptions): Promise<{ app: expre
       db.audit(req.auth!.id, "PROVIDER_UPDATE", "COMPANY_PROVIDER_CONFIG", "company", { host: new URL(baseUrl).hostname, model: body.model });
       res.json({ provider: { baseUrl: provider.baseUrl, model: provider.model, hasApiKey: true, updatedAt: provider.updatedAt } });
     } catch (error) { next(error); }
+  });
+
+  app.post("/api/admin/capability-import/analyze", requireAdmin, requireCsrf, async (req, res, next) => {
+    try {
+      const body = capabilityImportBodySchema.parse(req.body);
+      const provider = db.getProvider();
+      if (!provider) throw new HttpError(409, "PROVIDER_REQUIRED", "Configure the company AI provider before using intelligent import");
+      const requestBody = buildCapabilityAnalysisRequest(body, provider.model);
+      const { upstream, apiKey } = await fetchCompanyProvider("responses", requestBody, 120_000);
+      if (upstream.status >= 300 && upstream.status < 400) throw new HttpError(502, "PROVIDER_REDIRECT_REJECTED", "Provider redirect was rejected");
+      if (!upstream.ok) throw new HttpError(502, "AI_ANALYSIS_FAILED", "The AI provider could not analyze this capability source");
+      const length = Number(upstream.headers.get("content-length") ?? 0);
+      if (length > 2_000_000) throw new HttpError(502, "PROVIDER_RESPONSE_TOO_LARGE", "Capability analysis response was too large");
+      const payload = await readJsonWithLimit(upstream, 2_000_000);
+      let analysis;
+      try { analysis = parseCapabilityAnalysis(redactSecret(payload, apiKey)); }
+      catch { throw new HttpError(502, "AI_ANALYSIS_INVALID", "The AI provider returned an invalid capability analysis"); }
+      db.audit(req.auth!.id, "CAPABILITY_IMPORT_ANALYZE", "CAPABILITY_IMPORT", null, {
+        fileName: body.fileName ?? null,
+        sourceLength: body.sourceText.length,
+        proposalCount: analysis.proposals.length,
+      });
+      res.json({ analysis });
+    } catch (error) { next(error); }
+  });
+
+  app.post("/api/admin/capability-import/install", requireAdmin, requireCsrf, (req, res, next) => {
+    try {
+      const body = capabilityInstallBodySchema.parse(req.body);
+      const result = db.createCompanyCapabilityBatch(body.proposals.map((proposal) => ({
+        type: proposal.type,
+        slug: proposal.slug,
+        name: proposal.name,
+        description: proposal.description,
+        instructions: proposal.instructions,
+        priority: proposal.priority,
+        enabled: true,
+        alwaysOn: proposal.type === "PROMPT" ? true : proposal.type === "AGENT" ? false : proposal.alwaysOn,
+        skillSlugs: proposal.skillSlugs,
+      })));
+      db.audit(req.auth!.id, "CAPABILITY_IMPORT_INSTALL", "CAPABILITY_IMPORT", null, {
+        createdIds: result.created.map((capability) => capability.id),
+        skippedSlugs: result.skippedSlugs,
+      });
+      res.status(201).json({ capabilities: result.created, skippedSlugs: result.skippedSlugs });
+    } catch (error) {
+      if (String(error).includes("Missing company skill")) return next(new HttpError(409, "SKILL_BINDING_MISSING", "Install the referenced company skills before this agent"));
+      next(error);
+    }
   });
 
   app.get("/api/capabilities", requireAuth, (req, res, next) => {
@@ -374,7 +437,7 @@ export async function createApp(options: CreateAppOptions): Promise<{ app: expre
     }
   });
 
-  async function fetchCompanyProvider(endpoint: "responses" | "chat/completions" | "models", body?: Record<string, unknown>): Promise<{ upstream: globalThis.Response; apiKey: string }> {
+  async function fetchCompanyProvider(endpoint: "responses" | "chat/completions" | "models", body?: Record<string, unknown>, timeoutMs = 10 * 60_000): Promise<{ upstream: globalThis.Response; apiKey: string }> {
     const provider = db.getProvider();
     if (!provider) throw new HttpError(503, "PROVIDER_REQUIRED", "The company AI provider is not configured");
     const apiKey = decryptSecret(provider.apiKeyCiphertext, config.encryptionKey);
@@ -386,7 +449,7 @@ export async function createApp(options: CreateAppOptions): Promise<{ app: expre
       method: body ? "POST" : "GET",
       headers: { "authorization": `Bearer ${apiKey}`, "content-type": "application/json", "accept": body?.stream === true ? "text/event-stream" : "application/json" },
       redirect: "manual",
-      signal: AbortSignal.any([controller.signal, AbortSignal.timeout(10 * 60_000)]),
+      signal: AbortSignal.any([controller.signal, AbortSignal.timeout(timeoutMs)]),
     };
     if (body) init.body = JSON.stringify(body);
     try { return { upstream: await fetchImpl(url, init), apiKey }; }
@@ -478,7 +541,10 @@ export async function createApp(options: CreateAppOptions): Promise<{ app: expre
   app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
     if (error instanceof z.ZodError) return res.status(400).json({ error: { code: "INVALID_REQUEST", message: "Request validation failed" } });
     if (error instanceof HttpError) return res.status(error.status).json({ error: { code: error.code, message: error.message } });
-    if (config.environment !== "test") console.error(error);
+    const parserType = error && typeof error === "object" ? (error as { type?: unknown }).type : undefined;
+    if (parserType === "entity.parse.failed") return res.status(400).json({ error: { code: "INVALID_JSON", message: "Request body must be valid JSON" } });
+    if (parserType === "entity.too.large") return res.status(413).json({ error: { code: "REQUEST_TOO_LARGE", message: "Request body exceeds the permitted size" } });
+    if (config.environment !== "test") console.error("Unhandled application error", safeErrorForLog(error));
     res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "An unexpected error occurred" } });
   });
   return { app, db };

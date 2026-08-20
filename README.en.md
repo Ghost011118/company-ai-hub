@@ -34,6 +34,7 @@ Approved upstream AI provider
 - Central upstream provider configuration with encrypted credentials
 - Company and personal Agent, Skill, and Prompt management
 - Employee submission, admin approval/rejection, and immutable reviewed-snapshot publication
+- Admin AI-assisted creation window with text/file recognition, capability splitting, four-dimensional scoring, risk notes, iterative refinement, and confirmed installation
 - Deterministic server-side capability injection and Agent selection through `X-Company-Agent`
 - A management-only web console for configuration, submission, and review, with no AI chat interface
 - AES-256-GCM provider-key encryption and scrypt password hashing
@@ -108,6 +109,16 @@ When no company capability is enabled, the gateway adds no default system prompt
 ## Submission and review
 
 Submitting a personal capability creates an immutable snapshot. The administrator approves that snapshot, not a personal draft that can change later. Approval creates a company version with contributor attribution; rejection requires a reason. Later changes to the personal draft do not alter the published version.
+
+## AI-assisted creation and file import
+
+From the company library, an administrator can open a small configuration window and paste text or upload a TXT, Markdown, JSON, YAML, TOML, XML, or CSV file up to 100 KB. The configured company upstream AI identifies one or more Agent, Skill, and Prompt proposals and assigns overall, clarity, reusability, and safety scores with a verdict and risk notes. The administrator can add guidance, analyze again, select proposals, and confirm installation.
+
+- This is a capability-authoring tool, not a general AI conversation entry point.
+- AI scores are advisory. Every proposal is unchecked by default and requires an administrator to inspect the complete instructions and actively select it. `REJECT` proposals cannot be installed.
+- Multiple selected capabilities install in one database transaction. A new Agent can bind Skills installed in the same batch or existing company Skills.
+- The browser reads a file as text and the application does not store the original file. Closing the window or signing out clears browser-held source/proposals and invalidates in-flight analysis. Analysis content is sent to the administrator-configured company upstream AI. Follow that provider's data-handling policy and do not upload unauthorized secrets or personal data.
+- Only declarative instructions are installed. No code found in an uploaded file or AI output is executed.
 
 ## Production notes
 

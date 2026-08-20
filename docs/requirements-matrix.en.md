@@ -11,6 +11,9 @@ This page compares the current implementation with the core business workflow. T
 | Employee submits personal Agent, Skill, or Prompt ideas | Employees maintain personal drafts; submission creates an immutable, author-attributed snapshot | Implemented |
 | Admin reviews employee submissions | Administrators inspect snapshots and approve or reject them. Approval creates a company copy; rejection requires a reason | Implemented |
 | Web console is management-only and offers no AI conversation | The browser chat/API-debug page and its `/api/chat` endpoint are removed. The console retains capability, upstream, submission, review, and account management only | Implemented |
+| Admin produces capabilities from text or files | The company library has a small AI creation window for pasted text, supported text files, follow-up guidance, and re-analysis | Implemented |
+| AI identifies, judges, and scores proposals | The upstream returns Agent/Skill/Prompt proposals, four 0–100 scores, verdicts, and risks; the server validates them strictly | Implemented |
+| Admin confirms installation | `REJECT` items cannot install. Selected proposals enter the company library in one database transaction with Agent/Skill bindings resolved | Implemented |
 | Employee's local Codex uses the company API | The gateway provides Codex-compatible `POST /v1/responses`; Codex can point `base_url` at the company `/v1` | Implemented |
 | Company credential is isolated from the upstream key | Employees use a gateway Bearer Token. The admin-configured upstream key is AES-256-GCM encrypted and used only by the server | Implemented |
 | Company capabilities are injected before forwarding | Before forwarding, the server composes always-on company Prompts/Skills, the selected Agent and its Skills, then the caller's original `instructions` | Implemented |

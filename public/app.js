@@ -1,4 +1,4 @@
-const state = { user: null, csrfToken: '', capabilities: [], pendingDelete: null };
+const state = { user: null, csrfToken: '', capabilities: [], pendingDelete: null, importProposals: [], importFileName: '', importGeneration: 0, importAbortController: null };
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
 
@@ -40,6 +40,8 @@ function normalizeCapability(item) {
 function showLogin() {
   state.user = null;
   state.csrfToken = '';
+  if ($('#import-dialog').open) $('#import-dialog').close();
+  resetImport();
   $('#app-view').classList.add('hidden');
   $('#login-view').classList.remove('hidden');
 }
@@ -281,6 +283,146 @@ async function saveProvider(event) {
   catch (error) { toast(error.message); }
 }
 
+function resetImport() {
+  state.importGeneration += 1;
+  state.importAbortController?.abort();
+  state.importAbortController = null;
+  state.importProposals = [];
+  state.importFileName = '';
+  const form = $('#import-form');
+  form.reset();
+  $('#import-file-status').textContent = '支持 TXT、Markdown、JSON、YAML、TOML、XML、CSV，最大 100 KB；文件内容不会原样入库。';
+  $('#import-empty').classList.remove('hidden');
+  $('#import-analysis').classList.add('hidden');
+  $('#import-summary').textContent = '';
+  $('#import-proposals').replaceChildren();
+  $('#install-import').classList.add('hidden');
+  $('#install-import').disabled = false;
+  $('#install-import').textContent = '安装所选到公司能力库';
+  $('#analyze-import').disabled = false;
+  $('#analyze-import').textContent = '让 AI 识别并评分';
+}
+
+function openImport() {
+  resetImport();
+  $('#import-dialog').showModal();
+}
+
+async function loadImportFile(event) {
+  const file = event.currentTarget.files?.[0];
+  if (!file) return;
+  const allowed = /\.(txt|md|markdown|json|ya?ml|toml|xml|csv)$/i;
+  if (!allowed.test(file.name)) {
+    event.currentTarget.value = '';
+    return toast('暂不支持这种文件格式，请上传文本类配置文件');
+  }
+  if (file.size > 100_000) {
+    event.currentTarget.value = '';
+    return toast('文件不能超过 100 KB');
+  }
+  try {
+    const text = await file.text();
+    if (!text.trim()) throw new Error('文件内容为空');
+    $('#import-form').elements.sourceText.value = text;
+    state.importFileName = file.name;
+    $('#import-file-status').textContent = `已读取 ${file.name}（${file.size} 字节），点击分析后发送给公司上游 AI。`;
+  } catch (error) { toast(error.message || '无法读取文件'); }
+}
+
+function verdictText(value) {
+  return { RECOMMENDED: '推荐安装', NEEDS_REVIEW: '需要复核', REJECT: '不建议安装' }[value] || value;
+}
+
+function renderImportProposals(analysis) {
+  state.importProposals = analysis.proposals;
+  $('#import-summary').textContent = analysis.summary;
+  const container = $('#import-proposals'); container.replaceChildren();
+  analysis.proposals.forEach((proposal, index) => {
+    const card = document.createElement('article'); card.className = `proposal-card${proposal.verdict === 'REJECT' ? ' reject' : ''}`;
+    const heading = document.createElement('div'); heading.className = 'proposal-heading';
+    const select = document.createElement('input'); select.type = 'checkbox'; select.dataset.proposalIndex = String(index);
+    select.checked = false; select.disabled = proposal.verdict === 'REJECT'; select.setAttribute('aria-label', `选择 ${proposal.name}`);
+    const titleBox = document.createElement('div');
+    const title = document.createElement('h4'); title.textContent = proposal.name;
+    const description = document.createElement('p'); description.className = 'muted'; description.textContent = `${proposal.type} · ${proposal.slug} · ${proposal.description}`;
+    titleBox.append(title, description);
+    const total = document.createElement('div'); total.className = 'score-total'; total.textContent = String(proposal.scores.overall); total.title = 'AI 综合评分';
+    heading.append(select, titleBox, total);
+    const verdict = document.createElement('span'); verdict.className = `verdict${proposal.verdict === 'REJECT' ? ' reject' : ''}`; verdict.textContent = verdictText(proposal.verdict);
+    const scores = document.createElement('div'); scores.className = 'score-grid';
+    for (const [label, value] of [['清晰度', proposal.scores.clarity], ['复用性', proposal.scores.reusability], ['安全性', proposal.scores.safety]]) {
+      const item = document.createElement('span'); item.textContent = `${label} ${value}`; scores.append(item);
+    }
+    const rationale = document.createElement('p'); rationale.className = 'muted'; rationale.textContent = proposal.rationale;
+    const instructions = document.createElement('div'); instructions.className = 'proposal-instructions'; instructions.textContent = proposal.instructions;
+    const injectionMode = proposal.type === 'PROMPT' || proposal.alwaysOn ? '每次请求注入' : proposal.type === 'AGENT' ? '选择该 Agent 时注入' : '仅被 Agent 绑定时注入';
+    const installMeta = document.createElement('p'); installMeta.className = 'proposal-install-meta';
+    installMeta.textContent = `优先级 ${proposal.priority} · 安装后立即启用 · ${injectionMode}`;
+    card.append(heading, verdict, scores, rationale, installMeta);
+    if (proposal.type === 'AGENT') {
+      const bindings = document.createElement('p'); bindings.className = 'proposal-bindings';
+      bindings.textContent = `关联 Skills：${proposal.skillSlugs.length ? proposal.skillSlugs.join('、') : '无'}`;
+      card.append(bindings);
+    }
+    card.append(instructions);
+    if (proposal.risks.length) {
+      const risks = document.createElement('ul'); risks.className = 'proposal-risks';
+      for (const risk of proposal.risks) { const item = document.createElement('li'); item.textContent = risk; risks.append(item); }
+      card.append(risks);
+    }
+    container.append(card);
+  });
+  $('#import-empty').classList.add('hidden');
+  $('#import-analysis').classList.remove('hidden');
+  $('#install-import').classList.remove('hidden');
+  $('#analyze-import').textContent = '按补充要求重新分析';
+}
+
+async function analyzeImport(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const sourceText = form.elements.sourceText.value.trim();
+  if (!sourceText) return toast('请粘贴文字或上传文件');
+  state.importAbortController?.abort();
+  const controller = new AbortController();
+  state.importAbortController = controller;
+  const generation = ++state.importGeneration;
+  const button = $('#analyze-import'); button.disabled = true; button.textContent = 'AI 正在识别与评分…';
+  const payload = { sourceText };
+  if (state.importFileName) payload.fileName = state.importFileName;
+  if (form.elements.guidance.value.trim()) payload.guidance = form.elements.guidance.value.trim();
+  if (state.importProposals.length) payload.currentProposals = state.importProposals;
+  try {
+    const data = await api('/api/admin/capability-import/analyze', { method: 'POST', body: JSON.stringify(payload), signal: controller.signal });
+    if (generation !== state.importGeneration || state.user?.role !== 'ADMIN' || !$('#import-dialog').open) return;
+    renderImportProposals(data.analysis);
+  } catch (error) {
+    if (generation === state.importGeneration && error.name !== 'AbortError') toast(error.message);
+  } finally {
+    if (generation === state.importGeneration) {
+      state.importAbortController = null;
+      button.disabled = false;
+      button.textContent = state.importProposals.length ? '按补充要求重新分析' : '让 AI 识别并评分';
+    }
+  }
+}
+
+async function installImport() {
+  const indexes = [...document.querySelectorAll('[data-proposal-index]:checked')].map((input) => Number(input.dataset.proposalIndex));
+  const selected = indexes.map((index) => state.importProposals[index]).filter(Boolean);
+  if (!selected.length) return toast('请至少选择一个可安装候选项');
+  const button = $('#install-import'); button.disabled = true; button.textContent = '正在安装…';
+  try {
+    const result = await api('/api/admin/capability-import/install', { method: 'POST', body: JSON.stringify({ proposals: selected }) });
+    const installed = listFrom(result, 'capabilities').length;
+    const skipped = listFrom(result, 'skippedSlugs').length;
+    await loadCapabilities('COMPANY'); await refreshCompanyCapabilities();
+    $('#import-dialog').close();
+    toast(`已安装 ${installed} 项${skipped ? `，跳过 ${skipped} 个同名能力` : ''}`);
+  } catch (error) { toast(error.message); }
+  finally { button.disabled = false; button.textContent = '安装所选到公司能力库'; }
+}
+
 async function refreshCompanyCapabilities() {
   try {
     const companyData = await api('/api/capabilities?scope=company');
@@ -330,6 +472,12 @@ $$('[data-close-review]').forEach((el) => el.addEventListener('click', () => $('
 $('#confirm-form').addEventListener('submit', (event) => { event.preventDefault(); performDelete(); });
 $$('[data-close-confirm]').forEach((el) => el.addEventListener('click', () => { state.pendingDelete = null; $('#confirm-dialog').close(); }));
 $('#provider-form').addEventListener('submit', saveProvider);
+$('#open-import').addEventListener('click', openImport);
+$('#import-form').addEventListener('submit', analyzeImport);
+$('#import-form').elements.sourceFile.addEventListener('change', loadImportFile);
+$('#install-import').addEventListener('click', installImport);
+$$('[data-close-import]').forEach((el) => el.addEventListener('click', () => $('#import-dialog').close()));
+$('#import-dialog').addEventListener('close', resetImport);
 $('#user-form').addEventListener('submit', createUser);
 
 bootstrap();

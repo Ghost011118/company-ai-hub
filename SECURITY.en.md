@@ -18,3 +18,5 @@ Prefer the repository's private **Report a vulnerability** feature on the GitHub
 - known mitigations, if any.
 
 Do not submit real API keys, company data, or another person's personal information. Maintainers will acknowledge the report and coordinate remediation and disclosure timing. Keep details private until the fix is published.
+
+AI-assisted creation sends administrator-pasted or uploaded text to the configured company upstream provider. The application does not store the original file, but provider-side processing and retention depend on the service selected by the deployer. Administrators must not upload unauthorized credentials, personal data, or company secrets, and model scoring never replaces human review. Upload content and model output are handled only as untrusted text and are never executed as code.
