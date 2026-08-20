@@ -1,6 +1,6 @@
 {
   "mission": "Publish Company AI Hub as an Apache-2.0 open-source project with reviewed external contributions and evidence-backed promotion.",
-  "status": "VERIFYING",
+  "status": "ACCEPTED",
   "acceptance": [
     "Repository is public under Apache-2.0 with no committed credentials or private data",
     "External contributors can submit pull requests with documented expectations",

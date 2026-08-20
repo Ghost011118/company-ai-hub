@@ -1,18 +1,19 @@
 {
   "mission": "Publish Company AI Hub as an Apache-2.0 open-source project with reviewed external contributions and evidence-backed promotion.",
-  "status": "VERIFYING",
+  "status": "ACCEPTED",
   "tasks": [
     { "id": "public-release-audit", "status": "ACCEPTED" },
     { "id": "open-source-metadata", "status": "ACCEPTED" },
     { "id": "contribution-workflow", "status": "ACCEPTED" },
     { "id": "independent-review", "status": "ACCEPTED" },
-    { "id": "public-remote-and-rules", "status": "QUEUED" },
-    { "id": "promotion", "status": "RUNNING" }
+    { "id": "public-remote-and-rules", "status": "ACCEPTED" },
+    { "id": "promotion", "status": "ACCEPTED" }
   ],
   "verification": [
     "Current tree and all Git history passed bounded credential-pattern and tracked data-file checks.",
     "Apache-2.0 was explicitly selected by the owner.",
     "Local typecheck, 8 tests, build, YAML lint, JSON parse, and independent file review passed.",
-    "Final candidate CI, public visibility, private vulnerability reporting, and GitHub branch rules still require verification."
+    "Public visibility, Apache-2.0 detection, private vulnerability reporting, repository metadata, and main branch protection were verified through GitHub APIs.",
+    "Promotion PR cuihuan/awesome-ai-gateway#59 was opened under the target repository's documented rules; merge remains with its maintainers."
   ]
 }
