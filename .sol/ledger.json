@@ -1,0 +1,16 @@
+{
+  "mission": "Build a Codex-compatible company AI capability gateway and management console.",
+  "status": "VERIFYING",
+  "tasks": [
+    { "id": "gateway-and-storage", "status": "ACCEPTED" },
+    { "id": "management-console", "status": "ACCEPTED" },
+    { "id": "submission-review", "status": "ACCEPTED" },
+    { "id": "independent-review", "status": "ACCEPTED" },
+    { "id": "git-remote-sync", "status": "VERIFYING" }
+  ],
+  "verification": [
+    "Typecheck, tests, build, and browser flow passed on the final candidate.",
+    "Independent review accepted the candidate with release notes only.",
+    "Remote sync is verifying against Ghost011118/company-ai-hub."
+  ]
+}

@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light" />
+    <title>Company AI Hub</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <script src="/app.js" type="module"></script>
+  </head>
+  <body>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+    <main id="login-view" class="login-shell">
+      <section class="brand-panel">
+        <div class="brand-mark" aria-hidden="true">AI</div>
+        <p class="eyebrow">COMPANY AI HUB</p>
+        <h1>让公司的 AI 能力<br />沉淀、共享、持续进化</h1>
+        <p class="brand-copy">统一管理 Agent、Skill 与提示词。员工贡献创意，管理员审核发布，每次对话自动带上公司的最佳实践。</p>
+        <div class="feature-strip">
+          <span>统一能力库</span><span>员工共创</span><span>审核发布</span>
+        </div>
+      </section>
+      <section class="login-panel">
+        <form id="login-form" class="card login-card">
+          <div>
+            <p class="eyebrow">欢迎回来</p>
+            <h2>登录工作台</h2>
+            <p class="muted">使用公司账号进入 AI 能力中心</p>
+          </div>
+          <label>邮箱<input name="email" type="email" autocomplete="username" required maxlength="254" /></label>
+          <label>密码<input name="password" type="password" autocomplete="current-password" required maxlength="128" /></label>
+          <button class="primary" type="submit">进入工作台</button>
+          <p id="login-error" class="error" role="alert"></p>
+        </form>
+      </section>
+    </main>
+
+    <div id="app-view" class="app-shell hidden">
+      <aside class="sidebar">
+        <div class="sidebar-brand"><span class="brand-mark small">AI</span><div><strong>Company AI Hub</strong><small>企业能力中心</small></div></div>
+        <nav id="nav" aria-label="主导航">
+          <button data-page="chat" class="active"><span>✦</span> API 调试</button>
+          <button data-page="library"><span>◫</span> 我的能力库</button>
+          <button data-page="provider" data-admin><span>⌁</span> 上游模型</button>
+          <button data-page="company" data-admin><span>◇</span> 公司能力库</button>
+          <button data-page="reviews" data-admin><span>✓</span> 投稿审核 <b id="review-count" class="badge hidden">0</b></button>
+          <button data-page="users" data-admin><span>♙</span> 员工账号</button>
+        </nav>
+        <div class="sidebar-footer">
+          <div class="avatar" id="avatar">U</div>
+          <div><strong id="current-user">用户</strong><small id="current-role">成员</small></div>
+          <button id="logout" class="icon-button" title="退出登录" aria-label="退出登录">↗</button>
+        </div>
+      </aside>
+
+      <main class="workspace">
+        <header class="topbar">
+          <div><p class="eyebrow" id="page-kicker">WORKSPACE</p><h2 id="page-title">API 调试</h2></div>
+          <div class="status-pill"><span></span> 能力注入服务已启用</div>
+        </header>
+
+        <section id="page-chat" class="page active">
+          <div class="chat-layout">
+            <div class="chat-card card">
+              <div class="chat-toolbar">
+                <label>选择 Agent<select id="chat-agent"><option value="">通用助手</option></select></label>
+                <button id="clear-chat" class="secondary">清空对话</button>
+              </div>
+              <div id="messages" class="messages">
+                <div class="welcome-message"><div class="spark">✦</div><h3>今天想一起完成什么？</h3><p>公司的全局 Prompt 和 Skill 会在服务端自动加入，不需要你重复粘贴。</p></div>
+              </div>
+              <form id="chat-form" class="composer">
+                <textarea name="message" rows="2" maxlength="16000" placeholder="输入你的问题…" required></textarea>
+                <button class="primary send" type="submit" aria-label="发送">↑</button>
+              </form>
+            </div>
+            <aside class="injection-card card">
+              <p class="eyebrow">本次能力组合</p>
+              <h3>自动注入</h3>
+              <div id="active-capabilities" class="capability-stack"></div>
+              <p class="hint">这里是公司 API 的调试入口。员工本地 Codex 连接 `/v1/responses` 时使用同一套注入逻辑。</p>
+            </aside>
+          </div>
+        </section>
+
+        <section id="page-library" class="page">
+          <div class="section-head"><div><h3>我的能力库</h3><p>创建个人 Agent、Skill 或 Prompt，并提交给公司共享。</p></div><button class="primary" data-open-capability data-scope="PERSONAL">＋ 新建能力</button></div>
+          <div id="personal-list" class="grid-list"></div>
+        </section>
+
+        <section id="page-provider" class="page">
+          <div class="two-column narrow">
+            <form id="provider-form" class="card form-card">
+              <div><p class="eyebrow">管理员设置</p><h3>公司上游模型</h3><p class="muted">本地 Codex 只连接公司网关；供应商密钥由公司统一配置并加密保存，保存后不会再次显示。</p></div>
+              <label>API Base URL<input name="baseUrl" type="url" placeholder="https://api.example.com/v1" required /></label>
+              <label>模型名称<input name="model" placeholder="例如 gpt-4.1-mini" required maxlength="128" /></label>
+              <label>API Key<input name="apiKey" type="password" autocomplete="new-password" placeholder="留空表示保持原密钥" /></label>
+              <button class="primary" type="submit">保存配置</button>
+            </form>
+            <div class="card explainer"><div class="lock">⌾</div><h3>公司 API 调用链</h3><ol><li>员工本地 Codex 调用公司 `/v1/responses`</li><li>服务端读取已发布公司能力</li><li>组合后写入 Responses instructions</li><li>使用公司上游密钥转发并透传响应</li></ol></div>
+          </div>
+        </section>
+
+        <section id="page-company" class="page">
+          <div class="section-head"><div><h3>公司能力库</h3><p>管理所有员工对话都会使用的正式能力。</p></div><button class="primary" data-open-capability data-scope="COMPANY">＋ 发布能力</button></div>
+          <div id="company-list" class="grid-list"></div>
+        </section>
+
+        <section id="page-reviews" class="page">
+          <div class="section-head"><div><h3>投稿审核</h3><p>批准后发布审核快照，员工后续修改不会影响正式版本。</p></div></div>
+          <div id="submission-list" class="review-list"></div>
+        </section>
+
+        <section id="page-users" class="page">
+          <div class="two-column">
+            <form id="user-form" class="card form-card compact">
+              <div><p class="eyebrow">管理员</p><h3>创建员工账号</h3></div>
+              <label>姓名<input name="displayName" required minlength="1" maxlength="120" /></label>
+              <label>邮箱<input name="email" type="email" required maxlength="254" /></label>
+              <label>初始密码<input name="password" type="password" required minlength="12" maxlength="128" autocomplete="new-password" /></label>
+              <button class="primary" type="submit">创建账号</button>
+            </form>
+            <div class="card table-card"><h3>账号列表</h3><div id="user-list"></div></div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <dialog id="capability-dialog">
+      <form id="capability-form" method="dialog" class="dialog-form">
+        <input type="hidden" name="scope" />
+        <input type="hidden" name="id" />
+        <div class="dialog-head"><div><p class="eyebrow">能力编辑器</p><h3 id="dialog-title">新建能力</h3></div><button type="button" data-close-dialog class="icon-button" aria-label="关闭">×</button></div>
+        <div class="form-grid">
+          <label>类型<select name="kind"><option value="AGENT">Agent</option><option value="SKILL">Skill</option><option value="PROMPT">Prompt</option></select></label>
+          <label>优先级<input name="priority" type="number" min="0" max="10000" value="100" required /></label>
+        </div>
+        <label>名称<input name="name" required maxlength="80" /></label>
+        <label>标识符（用于 Codex 的 X-Company-Agent）<input name="slug" required maxlength="80" pattern="[a-z0-9]+(?:-[a-z0-9]+)*" placeholder="例如 code-review" /></label>
+        <label>用途说明<textarea name="description" rows="2" maxlength="500" required></textarea></label>
+        <label>指令内容<textarea name="content" rows="10" maxlength="30000" required placeholder="写清楚目标、边界、工作步骤和输出要求…"></textarea></label>
+        <label id="skill-binding-field">关联已发布的公司 Skills（Agent 可多选）<select name="skillIds" multiple size="4"></select></label>
+        <label id="always-on-field" class="checkbox"><input name="alwaysOn" type="checkbox" checked /> 无需选择 Agent，每次请求都注入</label>
+        <label class="checkbox"><input name="enabled" type="checkbox" checked /> 启用</label>
+        <div class="dialog-actions"><button type="button" data-close-dialog class="secondary">取消</button><button id="save-capability" type="submit" class="primary">保存</button></div>
+      </form>
+    </dialog>
+
+    <dialog id="review-dialog">
+      <form id="review-form" class="dialog-form">
+        <input type="hidden" name="submissionId" />
+        <input type="hidden" name="decision" />
+        <div class="dialog-head"><div><p class="eyebrow">投稿审核</p><h3 id="review-dialog-title">审核投稿</h3></div><button type="button" data-close-review class="icon-button" aria-label="关闭">×</button></div>
+        <label>审核说明<textarea name="note" rows="4" maxlength="2000" placeholder="批准时可选；退回时请说明修改方向"></textarea></label>
+        <div class="dialog-actions"><button type="button" data-close-review class="secondary">取消</button><button type="submit" class="primary">确认</button></div>
+      </form>
+    </dialog>
+
+    <dialog id="confirm-dialog">
+      <form id="confirm-form" class="dialog-form">
+        <div class="dialog-head"><div><p class="eyebrow">请确认</p><h3>删除这个能力？</h3></div><button type="button" data-close-confirm class="icon-button" aria-label="关闭">×</button></div>
+        <p class="muted">删除后无法恢复，已经生成的审核快照不会被修改。</p>
+        <div class="dialog-actions"><button type="button" data-close-confirm class="secondary">取消</button><button type="submit" class="danger">确认删除</button></div>
+      </form>
+    </dialog>
+  </body>
+</html>

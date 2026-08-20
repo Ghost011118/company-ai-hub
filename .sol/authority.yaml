@@ -1,0 +1,11 @@
+roles:
+  SOL:
+    owns: [architecture, integration, acceptance]
+  TERRA:
+    owns: [bounded_implementation, testing]
+  LUNA:
+    owns: [inspection, evidence]
+reserved_for_owner:
+  - undefined_business_semantics
+  - production_release
+  - irreversible_production_actions

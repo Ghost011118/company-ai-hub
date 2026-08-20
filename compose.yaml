@@ -1,0 +1,16 @@
+services:
+  app:
+    build: .
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      DATABASE_PATH: /app/data/company-ai-hub.db
+      SESSION_COOKIE_SECURE: "${SESSION_COOKIE_SECURE:-false}"
+    ports:
+      - "3780:3780"
+    volumes:
+      - company-ai-hub-data:/app/data
+    restart: unless-stopped
+
+volumes:
+  company-ai-hub-data:

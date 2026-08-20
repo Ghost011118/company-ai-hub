@@ -1,0 +1,14 @@
+{
+  "mission": "Deliver a runnable Codex-compatible company AI gateway with centrally managed agents, skills, prompts, and reviewed employee contributions.",
+  "status": "RUNNING",
+  "acceptance": [
+    "Admin can manage company-wide agents, skills, prompts, and bindings",
+    "Members can submit personal capabilities and admins can approve or reject immutable review snapshots",
+    "Local Codex can use the company base URL through the Responses API",
+    "Admin can configure one encrypted company upstream provider",
+    "Chat composition deterministically injects enabled company capabilities",
+    "Provider secrets are encrypted at rest and never returned to the browser",
+    "Fresh build, tests, and final diff verification pass"
+  ],
+  "authorityBoundary": "No production deployment, remote repository creation, or undefined department and billing semantics without owner authority."
+}

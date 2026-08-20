@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["mission", "status", "tasks", "verification"],
+  "properties": {
+    "mission": { "type": "string" },
+    "status": { "enum": ["QUEUED", "READY", "RUNNING", "BLOCKED", "ESCALATED", "VERIFYING", "ACCEPTED", "REJECTED", "CANCELLED"] },
+    "tasks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "status"],
+        "properties": {
+          "id": { "type": "string" },
+          "status": { "enum": ["QUEUED", "READY", "RUNNING", "BLOCKED", "ESCALATED", "VERIFYING", "ACCEPTED", "REJECTED", "CANCELLED"] }
+        },
+        "additionalProperties": false
+      }
+    },
+    "verification": { "type": "array", "items": { "type": "string" } }
+  },
+  "additionalProperties": false
+}

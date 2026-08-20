@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["role", "objective", "scope", "acceptance", "authority", "evidence"],
+  "properties": {
+    "role": { "enum": ["SOL", "TERRA", "LUNA"] },
+    "objective": { "type": "string" },
+    "scope": { "type": "array", "items": { "type": "string" } },
+    "acceptance": { "type": "array", "items": { "type": "string" } },
+    "authority": { "type": "string" },
+    "evidence": { "type": "array", "items": { "type": "string" } }
+  },
+  "additionalProperties": false
+}
