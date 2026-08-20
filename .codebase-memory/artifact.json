@@ -1,11 +1,11 @@
 {
     "schema_version": 2,
-    "commit": "f3f654873b912ad28bfa609829b0e38583404820",
-    "indexed_at": "2026-08-20T10:01:05Z",
+    "commit": "6291407d87f13732efb813a7b653dcd4188605d1",
+    "indexed_at": "2026-08-20T10:46:28Z",
     "project": "company-ai-hub",
     "nodes": 173,
     "edges": 376,
     "original_size": 2162688,
-    "compressed_size": 206676,
+    "compressed_size": 206979,
     "compression_level": 3
 }
