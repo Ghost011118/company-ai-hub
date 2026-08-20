@@ -2,8 +2,25 @@
   "name": "company-ai-hub",
   "version": "0.1.0",
   "private": true,
+  "license": "Apache-2.0",
   "type": "module",
   "description": "A centrally managed company AI capability layer for global agents, skills, and prompt injection.",
+  "homepage": "https://github.com/Ghost011118/company-ai-hub#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Ghost011118/company-ai-hub.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Ghost011118/company-ai-hub/issues"
+  },
+  "keywords": [
+    "codex",
+    "ai-gateway",
+    "agents",
+    "skills",
+    "prompt-management",
+    "enterprise-ai"
+  ],
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc -p tsconfig.json",

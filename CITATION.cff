@@ -1,0 +1,19 @@
+cff-version: 1.2.0
+message: "If you use Company AI Hub, please cite this repository."
+title: "Company AI Hub"
+type: software
+authors:
+  - family-names: "Ghost011118"
+version: 0.1.0
+date-released: 2026-08-20
+license: Apache-2.0
+repository-code: "https://github.com/Ghost011118/company-ai-hub"
+url: "https://github.com/Ghost011118/company-ai-hub"
+abstract: "A self-hosted, Codex-compatible governance gateway for centrally managed company Agents, Skills, and Prompts."
+keywords:
+  - Codex
+  - AI gateway
+  - agents
+  - skills
+  - prompt management
+  - enterprise AI

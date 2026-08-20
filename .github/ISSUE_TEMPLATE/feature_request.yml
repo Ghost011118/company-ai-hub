@@ -1,0 +1,35 @@
+name: Feature request
+description: Propose an improvement aligned with the project's scope.
+title: "[Feature]: "
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case
+      description: Explain the company or contributor workflow that needs improvement.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Describe the desired outcome, not only an implementation.
+    validations:
+      required: true
+  - type: textarea
+    id: boundaries
+    attributes:
+      label: Security and compatibility impact
+      description: Note effects on APIs, authentication, capability review, storage, or deployment.
+    validations:
+      required: true
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope check
+      options:
+        - label: I searched existing issues and pull requests.
+          required: true
+        - label: I did not include credentials, personal data, or company-internal data.
+          required: true

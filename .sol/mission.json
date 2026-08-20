@@ -1,14 +1,13 @@
 {
-  "mission": "Deliver a runnable Codex-compatible company AI gateway with centrally managed agents, skills, prompts, and reviewed employee contributions.",
-  "status": "RUNNING",
+  "mission": "Publish Company AI Hub as an Apache-2.0 open-source project with reviewed external contributions and evidence-backed promotion.",
+  "status": "VERIFYING",
   "acceptance": [
-    "Admin can manage company-wide agents, skills, prompts, and bindings",
-    "Members can submit personal capabilities and admins can approve or reject immutable review snapshots",
-    "Local Codex can use the company base URL through the Responses API",
-    "Admin can configure one encrypted company upstream provider",
-    "Chat composition deterministically injects enabled company capabilities",
-    "Provider secrets are encrypted at rest and never returned to the browser",
-    "Fresh build, tests, and final diff verification pass"
+    "Repository is public under Apache-2.0 with no committed credentials or private data",
+    "External contributors can submit pull requests with documented expectations",
+    "Main branch requires passing checks and maintainer review before merge",
+    "Repository exposes citation metadata, contribution templates, security reporting, description, and topics",
+    "Any third-party promotion follows the target repository's contribution rules",
+    "Fresh build, tests, independent review, remote-rule checks, and final diff verification pass"
   ],
-  "authorityBoundary": "No production deployment, remote repository creation, or undefined department and billing semantics without owner authority."
+  "authorityBoundary": "Owner authorized public release under Apache-2.0 and reviewed pull requests; no production deployment or unsolicited third-party promotion outside explicit repository rules."
 }

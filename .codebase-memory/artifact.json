@@ -1,7 +1,7 @@
 {
     "schema_version": 2,
-    "commit": "5ca32d860e6176280507976a5b67bbfd41a0aba0",
-    "indexed_at": "2026-08-20T09:44:06Z",
+    "commit": "f3f654873b912ad28bfa609829b0e38583404820",
+    "indexed_at": "2026-08-20T10:01:05Z",
     "project": "company-ai-hub",
     "nodes": 173,
     "edges": 376,

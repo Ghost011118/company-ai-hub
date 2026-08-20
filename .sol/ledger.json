@@ -1,16 +1,18 @@
 {
-  "mission": "Build a Codex-compatible company AI capability gateway and management console.",
-  "status": "ACCEPTED",
+  "mission": "Publish Company AI Hub as an Apache-2.0 open-source project with reviewed external contributions and evidence-backed promotion.",
+  "status": "VERIFYING",
   "tasks": [
-    { "id": "gateway-and-storage", "status": "ACCEPTED" },
-    { "id": "management-console", "status": "ACCEPTED" },
-    { "id": "submission-review", "status": "ACCEPTED" },
+    { "id": "public-release-audit", "status": "ACCEPTED" },
+    { "id": "open-source-metadata", "status": "ACCEPTED" },
+    { "id": "contribution-workflow", "status": "ACCEPTED" },
     { "id": "independent-review", "status": "ACCEPTED" },
-    { "id": "git-remote-sync", "status": "ACCEPTED" }
+    { "id": "public-remote-and-rules", "status": "QUEUED" },
+    { "id": "promotion", "status": "RUNNING" }
   ],
   "verification": [
-    "Typecheck, tests, build, and browser flow passed on the final candidate.",
-    "Independent review accepted the candidate with release notes only.",
-    "Private remote Ghost011118/company-ai-hub was created and synchronized."
+    "Current tree and all Git history passed bounded credential-pattern and tracked data-file checks.",
+    "Apache-2.0 was explicitly selected by the owner.",
+    "Local typecheck, 8 tests, build, YAML lint, JSON parse, and independent file review passed.",
+    "Final candidate CI, public visibility, private vulnerability reporting, and GitHub branch rules still require verification."
   ]
 }

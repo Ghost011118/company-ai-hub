@@ -1,6 +1,30 @@
 # Company AI Hub
 
+[![CI](https://github.com/Ghost011118/company-ai-hub/actions/workflows/verify.yml/badge.svg)](https://github.com/Ghost011118/company-ai-hub/actions/workflows/verify.yml)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![Node.js 24+](https://img.shields.io/badge/Node.js-24%2B-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org/)
+[![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+
 一个可被本地 Codex 直接连接的公司 AI 能力网关。管理员统一维护全局 Agent、Skill 和 Prompt；员工通过公司 API 使用统一上游，也可以在网页提交个人创意，经管理员审核后发布到公司能力库。
+
+> **English:** A self-hosted, Codex-compatible governance gateway for centrally managed company Agents, Skills, and Prompts. Employees can contribute reusable capabilities through an immutable submission and admin-review workflow.
+
+## 为什么需要它
+
+```text
+Local Codex / API clients
+          |
+          v
+Company AI Hub  ----  Admin review & capability registry
+          |
+          v
+Approved upstream AI provider
+```
+
+- 把公司统一 AI 能力放在服务端治理，不依赖每位员工手工同步提示词。
+- 兼容 Codex 使用的 Responses API，同时保留调用方原始工具和请求字段。
+- 让员工贡献 Agent、Skill、Prompt，但只有管理员审核批准的不可变快照才能进入公司能力库。
+- 不接管员工本地 Codex 配置或供应商密钥；部署者自行配置网关与上游。
 
 ## 首版已覆盖
 
@@ -103,3 +127,17 @@ pnpm build
 ```
 
 详细边界与流程见 [docs/architecture.md](docs/architecture.md)。
+
+## 参与贡献
+
+欢迎通过 Issue 提交问题和想法，也欢迎通过 Fork + Pull Request 贡献代码。`main` 分支受保护，外部代码必须经过自动检查和维护者审查后才能合并。完整流程见 [CONTRIBUTING.md](CONTRIBUTING.md)。
+
+安全漏洞请不要提交公开 Issue，请按 [SECURITY.md](SECURITY.md) 私下报告。
+
+## 引用
+
+GitHub 的 **Cite this repository** 功能由 [CITATION.cff](CITATION.cff) 提供。如在论文、内部技术方案或开源项目中使用本项目，欢迎引用并链接本仓库。
+
+## 许可证
+
+本项目采用 [Apache License 2.0](LICENSE) 开源。
