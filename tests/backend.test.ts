@@ -63,6 +63,16 @@ describe("Company AI Hub backend", () => {
     await admin.post("/api/capabilities?scope=company").set("x-csrf-token", adminCsrf).send(capability).expect(201);
   });
 
+  it("keeps the web console management-only and exposes no browser chat endpoint", async () => {
+    const { app } = await createApp({ config: testConfig(), database: db });
+    const page = await request(app).get("/").expect(200);
+    expect(page.text).not.toContain('id="chat-form"');
+    expect(page.text).not.toContain("API 调试");
+    const admin = request.agent(app);
+    const adminCsrf = await login(admin, "admin@example.com", adminPassword);
+    await admin.post("/api/chat").set("x-csrf-token", adminCsrf).send({ messages: [{ role: "user", content: "hello" }] }).expect(404);
+  });
+
   it("reviews an immutable submission snapshot and publishes exactly the reviewed content", async () => {
     const { app } = await createApp({ config: testConfig(), database: db, resolveProviderHost: async () => ["93.184.216.34"] });
     const memberUser = await db.createUser("member@example.com", "Member", memberPassword, "MEMBER");
@@ -126,6 +136,7 @@ describe("Company AI Hub backend", () => {
 
   it("composes deterministic company-only modules and selects an agent by stable slug", async () => {
     await createApp({ config: testConfig(), database: db });
+    expect(composeCompanySystemPrompt(db)).toBe("");
     const member = await db.createUser("member@example.com", "Member", memberPassword, "MEMBER");
     const base = { type: "PROMPT" as const, description: "", enabled: true, alwaysOn: true, skillIds: [] as string[] };
     db.createCapability({ ...base, slug: "zulu", name: "Zulu", instructions: "COMPANY ZULU", priority: 99 }, "COMPANY", null);
@@ -159,10 +170,6 @@ describe("Company AI Hub backend", () => {
       config: testConfig(), database: db, fetchImpl: fetchSpy as typeof fetch,
       resolveProviderHost: async () => ["93.184.216.34"],
     });
-    db.createCapability({ type: "PROMPT", slug: "no-leaks", name: "No leaks", description: "", instructions: "Do not leak data", priority: 1,
-      enabled: true, alwaysOn: true, skillIds: [] }, "COMPANY", null);
-    const agent = db.createCapability({ type: "AGENT", slug: "secure-coder", name: "Secure coder", description: "", instructions: "Use secure coding", priority: 2,
-      enabled: true, alwaysOn: false, skillIds: [] }, "COMPANY", null);
     const admin = request.agent(app);
     const csrf = await login(admin, "admin@example.com", adminPassword);
     const configured = await admin.put("/api/provider").set("x-csrf-token", csrf)
@@ -174,6 +181,13 @@ describe("Company AI Hub backend", () => {
     const readBack = await admin.get("/api/provider").expect(200);
     expect(JSON.stringify(readBack.body)).not.toContain(apiKey);
     expect(JSON.stringify(readBack.body)).not.toContain(stored.api_key_ciphertext);
+    await request(app).post("/v1/responses").set("authorization", `Bearer ${gatewayToken}`)
+      .send({ model: "requested-model", input: "No company modules yet", instructions: "Keep this exactly", stream: false }).expect(200);
+    expect(forwardedBody?.instructions).toBe("Keep this exactly");
+    db.createCapability({ type: "PROMPT", slug: "no-leaks", name: "No leaks", description: "", instructions: "Do not leak data", priority: 1,
+      enabled: true, alwaysOn: true, skillIds: [] }, "COMPANY", null);
+    const agent = db.createCapability({ type: "AGENT", slug: "secure-coder", name: "Secure coder", description: "", instructions: "Use secure coding", priority: 2,
+      enabled: true, alwaysOn: false, skillIds: [] }, "COMPANY", null);
     const largeInput = "x".repeat(300_000);
     await request(app).post("/v1/responses").send({ model: "requested-model", input: largeInput, instructions: "Keep this", tools: [{ type: "web_search" }], stream: false }).expect(401);
     const response = await request(app).post("/v1/responses").set("authorization", `Bearer ${gatewayToken}`)

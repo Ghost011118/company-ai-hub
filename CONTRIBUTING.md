@@ -1,5 +1,7 @@
 # Contributing to Company AI Hub
 
+[简体中文](CONTRIBUTING.md) | [English](CONTRIBUTING.en.md)
+
 感谢你参与 Company AI Hub。我们欢迎 Bug 修复、测试、文档和与项目目标一致的功能改进。
 
 ## 提交方式
