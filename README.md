@@ -1,5 +1,7 @@
 # Company AI Hub
 
+[简体中文](README.md) | [English](README.en.md)
+
 [![CI](https://github.com/Ghost011118/company-ai-hub/actions/workflows/verify.yml/badge.svg)](https://github.com/Ghost011118/company-ai-hub/actions/workflows/verify.yml)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Node.js 24+](https://img.shields.io/badge/Node.js-24%2B-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org/)
@@ -7,7 +9,7 @@
 
 一个可被本地 Codex 直接连接的公司 AI 能力网关。管理员统一维护全局 Agent、Skill 和 Prompt；员工通过公司 API 使用统一上游，也可以在网页提交个人创意，经管理员审核后发布到公司能力库。
 
-> **English:** A self-hosted, Codex-compatible governance gateway for centrally managed company Agents, Skills, and Prompts. Employees can contribute reusable capabilities through an immutable submission and admin-review workflow.
+一个自托管、兼容 Codex 的公司 AI 能力治理网关。管理员统一维护 Agent、Skill 和 Prompt，员工可以提交可复用能力，经管理员审核后进入公司能力库。
 
 ## 为什么需要它
 
@@ -29,13 +31,13 @@ Approved upstream AI provider
 ## 首版已覆盖
 
 - 管理员与员工账号、数据库会话、角色权限
-- Codex-compatible `POST /v1/responses`（JSON 与 SSE 流式透传）
+- Codex-compatible `POST /v1/responses`（JSON 安全代理与 SSE 字节流转发）
 - OpenAI-compatible `POST /v1/chat/completions` 和 `GET /v1/models`
 - 公司统一上游供应商配置与加密密钥
 - 公司与个人 Agent / Skill / Prompt 管理
 - 员工投稿、管理员批准或退回、审核快照发布
 - 公司能力的确定性服务端注入，以及 `X-Company-Agent` Agent 选择
-- 网页 API 调试入口
+- 只用于配置、投稿和审核的管理网页，不提供 AI 对话入口
 - 供应商密钥 AES-256-GCM 加密、密码 scrypt 哈希
 - CSRF、登录限流、请求校验、CSP、SSRF 基础防护和审计事件
 
@@ -83,7 +85,7 @@ wire_api = "responses"
 http_headers = { "X-Company-Agent" = "code-review" }
 ```
 
-上述字段以 [Codex configuration reference](https://developers.openai.com/codex/config-file/config-reference) 为准。网关按官方 [Responses create API](https://developers.openai.com/api/reference/resources/responses/methods/create) 修改 `instructions`，其余字段与工具定义保持透传。
+上述字段以 [Codex configuration reference](https://developers.openai.com/codex/config-reference) 为准。网关按官方 [Responses create API](https://developers.openai.com/api/reference/resources/responses/methods/create) 修改 `instructions`，其余字段与工具定义保持透传。
 
 ## Docker
 
@@ -102,7 +104,8 @@ SQLite 数据保存在命名卷 `company-ai-hub-data` 中。
 3. 调用方原有的 `instructions`
 4. 调用方原有的 `input`、工具与其他 Responses 字段
 
-同一层级按 `priority` 升序、名称和 ID 稳定排序。实际组装发生在服务端；浏览器只展示能力名称。
+同一层级按 `priority` 升序、名称和 ID 稳定排序。实际组装发生在服务端；管理网页不组装或发送模型对话请求。
+如果没有任何已启用的公司能力，网关不会补充默认系统提示，调用方原始指令保持不变。
 
 ## 投稿与审核
 
@@ -115,6 +118,8 @@ SQLite 数据保存在命名卷 `company-ai-hub-data` 中。
 - 生产环境必须把 `PROVIDER_HOST_ALLOWLIST` 配置为公司允许使用的供应商域名精确列表；这是上游网络访问的信任边界。
 - `compose.yaml` 默认面向本机 HTTP 验收，因此 `SESSION_COOKIE_SECURE` 默认是 `false`；接入 HTTPS 反向代理时必须设为 `true`。
 - MVP 不提供员工 API Key 发放后台；网关访问 token 由部署环境统一管理。正式大规模使用建议在前置网关接入公司 SSO/IAP。
+- 这里的“公司 API Key”是公司网关的访问凭据，不是 OpenAI/上游供应商 Key；上游 Key 加密保存在服务端，不下发给员工。
+- 网关治理所有经过公司 API 的 Codex **模型请求**。纯本地且没有产生模型 API 请求的文件读取、命令执行等动作不会经过网关，因此不在注入范围内。
 - 定期备份 SQLite；多人高并发或多实例部署时，将持久化层迁移到 PostgreSQL。
 - API 网关优先支持 Codex 使用的 Responses 协议；供应商必须真正兼容 Responses 的请求与 SSE 事件格式。
 
@@ -126,7 +131,7 @@ pnpm test
 pnpm build
 ```
 
-详细边界与流程见 [docs/architecture.md](docs/architecture.md)。
+详细边界与流程见[架构说明](docs/architecture.md)和[需求验收矩阵](docs/requirements-matrix.md)。
 
 ## 参与贡献
 

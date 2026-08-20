@@ -1,42 +1,67 @@
-# Company AI Hub architecture
+# Company AI Hub 架构
 
-## Product boundary
+[简体中文](architecture.md) | [English](architecture.en.md)
 
-Company AI Hub is a Codex-compatible managed capability gateway. Employees point local Codex at the company base URL. Administrators configure one OpenAI-compatible upstream and centrally publish company agents, reusable skills, and always-on prompt modules. The gateway assembles those modules before forwarding each Responses API request.
+## 产品边界
 
-## Capability model
+Company AI Hub 是一个兼容 Codex 的公司能力治理网关。员工把本地 Codex 的模型供应商地址指向公司网关；管理员在网页配置一个兼容 OpenAI Responses API 的上游，并统一发布公司 Agent、可复用 Skill 和常驻 Prompt。网关在转发每次 Responses API 请求前组装这些能力。
 
-- **Prompt**: company instructions that are always injected after publication; personal prompts remain drafts until approved.
-- **Skill**: reusable instructions. A skill can be always-on or attached to one or more agents.
-- **Agent**: a selectable persona/workflow with its own instructions and attached skills.
-- **Scope**: company capabilities are admin-managed; personal capabilities are owned by one member.
-- **Order**: always-on company modules, selected company Agent and bound Skills, then the caller's original instructions. Each group uses ascending priority and stable name order.
+网关覆盖的是所有经过公司 API 的 Codex 模型请求。Codex 在员工电脑上纯本地完成、没有产生模型 API 请求的文件读取或命令执行不会经过网关，也无法由网关注入或审计。
 
-## Community contribution workflow
+## 能力模型
 
-1. A member creates a personal Agent, Skill, or Prompt.
-2. Submitting it creates an immutable review snapshot with author attribution.
-3. An administrator approves or rejects the snapshot and may leave a review note.
-4. Approval publishes a company-scoped copy linked to the submission. Later edits to the personal original cannot alter the reviewed company copy.
-5. Only approved, enabled company copies participate in company-wide injection.
+- **Prompt**：管理员发布后始终注入的公司指令；员工个人 Prompt 在审核通过前只是草稿。
+- **Skill**：可复用指令模块，可以设为始终启用，也可以绑定到一个或多个 Agent。
+- **Agent**：可选择的角色或工作流，包含自身指令和关联 Skill。
+- **作用域**：公司能力由管理员管理；个人能力只属于创建它的员工。
+- **顺序**：公司常驻 Prompt/Skill、所选公司 Agent 及其 Skill、调用方原始 `instructions`。同组按优先级升序和稳定名称顺序组装。
+- **空配置**：没有已启用的公司能力时不注入任何默认提示，调用方原始指令保持不变。
 
-Only declarative instruction text is supported in the MVP. Skills do not execute arbitrary server-side code.
+MVP 中的 Skill 只包含声明式指令文本，不执行投稿者上传的 JavaScript、Python 或 Shell 代码。
 
-## Request flow
+## 员工投稿与审核
 
-1. Local Codex calls the company `/v1/responses` endpoint with a gateway bearer token.
-2. The server loads enabled, approved company capabilities. An optional `X-Company-Agent` header selects one published Agent and its bound Skills.
-3. The composition service prepends a company block to the request's existing `instructions`.
-4. The server decrypts the company upstream credential in memory and forwards the otherwise intact Responses request.
-5. JSON or SSE is streamed back transparently; secrets and message bodies are excluded from audit events.
+1. 员工登录网页，创建个人 Agent、Skill 或 Prompt。
+2. 提交时生成带作者归属的不可变审核快照。
+3. 管理员查看快照并批准或退回，可填写审核意见。
+4. 批准后生成与投稿关联的公司副本；员工后来修改个人草稿不会改变已审核的公司版本。
+5. 只有已批准且启用的公司能力会参与公司级注入。
 
-## Security boundaries
+## Codex 请求链路
 
-- Passwords use `scrypt` with per-password salts.
-- Sessions use random, hashed, database-backed tokens in `HttpOnly` cookies.
-- State-changing browser calls require a per-session CSRF token.
-- Provider keys use AES-256-GCM at rest and are never returned by APIs.
-- Gateway access uses one deployment-managed bearer token in the MVP; there is no key issuance UI.
-- Provider URLs default to public HTTPS destinations and do not follow redirects.
-- Production startup requires an exact provider hostname allowlist; network egress controls remain recommended defense in depth.
-- Request validation, body limits, rate limits, CSP, and generic production errors are enabled.
+```text
+员工本地 Codex
+  -> Authorization: Bearer <公司网关凭据>
+  -> Company AI Hub /v1/responses
+  -> 加载已启用的公司能力并组装 instructions
+  -> 使用仅保存在服务端的上游凭据
+  -> OpenAI 或兼容 Responses API 的供应商
+  -> 安全处理后的 JSON / 字节流 SSE 返回 Codex
+```
+
+1. 本地 Codex 携带公司提供的网关 Bearer Token 调用 `/v1/responses`。
+2. 服务端加载已启用、已批准的公司能力。可选的 `X-Company-Agent` 请求头选择一个已发布 Agent 及其绑定 Skill。
+3. 组装服务把公司能力块放在请求原有 `instructions` 之前，保留原始 `input`、工具定义和其他 Responses 字段。
+4. 服务端只在内存中解密公司配置的上游密钥，并把请求转发到上游 `/responses`。
+5. 网关保留上游状态码和受支持的安全响应头；JSON 会解析、做密钥脱敏后重新序列化，SSE 按字节流转发。审计事件不记录密钥和消息正文。
+
+员工持有的是公司网关访问凭据，不是 OpenAI 或其他上游供应商的 API Key。MVP 使用一个由部署环境管理的共享 `GATEWAY_BEARER_TOKEN`，尚未提供逐员工发放、轮换、吊销和用量归属界面；生产规模化部署建议在前置网关接入公司 SSO/IAP 或企业 API 管理系统。
+
+## 管理网页
+
+- 管理员：管理公司 Agent/Skill/Prompt、配置上游、审核投稿、查看公司能力库。
+- 员工：登录、维护个人 Agent/Skill/Prompt 并提交审核；审核队列和公司能力库管理页只对管理员开放。
+- 网页严格作为管理面，只提供配置、投稿和审核，不提供用户与 AI 对话或 API 调试入口。员工使用 AI 的正式工作流是本地 Codex 直接连接公司 API。
+
+## 安全边界
+
+- 密码使用带独立盐值的 `scrypt` 哈希。
+- 会话使用随机、哈希后入库的 Token，并通过 `HttpOnly` Cookie 传递。
+- 浏览器状态变更请求需要会话级 CSRF Token。
+- 上游供应商密钥采用 AES-256-GCM 加密保存，API 永不返回明文。
+- MVP 的网关访问使用一个部署级 Bearer Token，没有员工 Key 发放界面。
+- 供应商 URL 默认必须是公共 HTTPS 地址，且不跟随重定向。
+- 生产启动要求精确的供应商域名白名单；仍建议使用网络出口控制作为纵深防御。
+- 启用请求校验、请求体大小限制、速率限制、CSP 和生产环境通用错误响应。
+
+完整逐项对照见[需求验收矩阵](requirements-matrix.md)。

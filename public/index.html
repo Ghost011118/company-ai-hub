@@ -16,7 +16,7 @@
         <div class="brand-mark" aria-hidden="true">AI</div>
         <p class="eyebrow">COMPANY AI HUB</p>
         <h1>让公司的 AI 能力<br />沉淀、共享、持续进化</h1>
-        <p class="brand-copy">统一管理 Agent、Skill 与提示词。员工贡献创意，管理员审核发布，每次对话自动带上公司的最佳实践。</p>
+        <p class="brand-copy">统一管理 Agent、Skill 与提示词。员工贡献创意，管理员审核发布；员工本地 Codex 调用公司 API 时自动注入正式能力。</p>
         <div class="feature-strip">
           <span>统一能力库</span><span>员工共创</span><span>审核发布</span>
         </div>
@@ -40,8 +40,7 @@
       <aside class="sidebar">
         <div class="sidebar-brand"><span class="brand-mark small">AI</span><div><strong>Company AI Hub</strong><small>企业能力中心</small></div></div>
         <nav id="nav" aria-label="主导航">
-          <button data-page="chat" class="active"><span>✦</span> API 调试</button>
-          <button data-page="library"><span>◫</span> 我的能力库</button>
+          <button data-page="library" class="active"><span>◫</span> 我的能力库</button>
           <button data-page="provider" data-admin><span>⌁</span> 上游模型</button>
           <button data-page="company" data-admin><span>◇</span> 公司能力库</button>
           <button data-page="reviews" data-admin><span>✓</span> 投稿审核 <b id="review-count" class="badge hidden">0</b></button>
@@ -56,35 +55,11 @@
 
       <main class="workspace">
         <header class="topbar">
-          <div><p class="eyebrow" id="page-kicker">WORKSPACE</p><h2 id="page-title">API 调试</h2></div>
-          <div class="status-pill"><span></span> 能力注入服务已启用</div>
+          <div><p class="eyebrow" id="page-kicker">CONTRIBUTE</p><h2 id="page-title">我的能力库</h2></div>
+          <div class="status-pill"><span></span> 能力管理服务已启用</div>
         </header>
 
-        <section id="page-chat" class="page active">
-          <div class="chat-layout">
-            <div class="chat-card card">
-              <div class="chat-toolbar">
-                <label>选择 Agent<select id="chat-agent"><option value="">通用助手</option></select></label>
-                <button id="clear-chat" class="secondary">清空对话</button>
-              </div>
-              <div id="messages" class="messages">
-                <div class="welcome-message"><div class="spark">✦</div><h3>今天想一起完成什么？</h3><p>公司的全局 Prompt 和 Skill 会在服务端自动加入，不需要你重复粘贴。</p></div>
-              </div>
-              <form id="chat-form" class="composer">
-                <textarea name="message" rows="2" maxlength="16000" placeholder="输入你的问题…" required></textarea>
-                <button class="primary send" type="submit" aria-label="发送">↑</button>
-              </form>
-            </div>
-            <aside class="injection-card card">
-              <p class="eyebrow">本次能力组合</p>
-              <h3>自动注入</h3>
-              <div id="active-capabilities" class="capability-stack"></div>
-              <p class="hint">这里是公司 API 的调试入口。员工本地 Codex 连接 `/v1/responses` 时使用同一套注入逻辑。</p>
-            </aside>
-          </div>
-        </section>
-
-        <section id="page-library" class="page">
+        <section id="page-library" class="page active">
           <div class="section-head"><div><h3>我的能力库</h3><p>创建个人 Agent、Skill 或 Prompt，并提交给公司共享。</p></div><button class="primary" data-open-capability data-scope="PERSONAL">＋ 新建能力</button></div>
           <div id="personal-list" class="grid-list"></div>
         </section>
@@ -103,7 +78,7 @@
         </section>
 
         <section id="page-company" class="page">
-          <div class="section-head"><div><h3>公司能力库</h3><p>管理所有员工对话都会使用的正式能力。</p></div><button class="primary" data-open-capability data-scope="COMPANY">＋ 发布能力</button></div>
+          <div class="section-head"><div><h3>公司能力库</h3><p>管理所有经过公司 API 的 Codex 模型请求可使用的正式能力。</p></div><button class="primary" data-open-capability data-scope="COMPANY">＋ 发布能力</button></div>
           <div id="company-list" class="grid-list"></div>
         </section>
 

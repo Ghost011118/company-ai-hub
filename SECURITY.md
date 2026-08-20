@@ -1,10 +1,12 @@
 # Security Policy
 
-## Supported versions
+[简体中文](SECURITY.md) | [English](SECURITY.en.md)
 
-Company AI Hub is currently pre-1.0. Security fixes target the latest code on `main` until versioned releases are published.
+## 支持版本
 
-## Reporting a vulnerability
+Company AI Hub 当前处于 1.0 之前。正式版本发布前，安全修复以 `main` 分支最新代码为目标。
+
+## 报告漏洞
 
 请不要通过公开 Issue、Discussion 或 Pull Request 披露漏洞细节。
 
@@ -16,5 +18,3 @@ Company AI Hub is currently pre-1.0. Security fixes target the latest code on `m
 - 已知缓解措施（如有）。
 
 不要提交真实 API Key、公司数据或其他人的个人信息。维护者会确认报告并协调修复与披露时间；在修复发布前请保持细节私密。
-
-Please report vulnerabilities through GitHub private vulnerability reporting. Do not disclose exploitable details or real credentials in public issues.

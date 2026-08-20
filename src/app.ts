@@ -29,10 +29,6 @@ const providerBody = z.object({
   apiKey: z.string().min(1).max(4_096).optional(),
 }).strict();
 const agentReference = z.union([z.string().uuid(), z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(120)]);
-const chatBody = z.object({
-  messages: z.array(z.object({ role: z.enum(["user", "assistant"]), content: z.string().min(1).max(100_000) }).strict()).min(1).max(100),
-  agentId: agentReference.optional(),
-}).strict();
 const responsesGatewayBody = z.object({
   instructions: z.string().max(200_000).optional(),
   model: z.string().min(1).max(200).optional(),
@@ -181,7 +177,6 @@ export async function createApp(options: CreateAppOptions): Promise<{ app: expre
   app.use(helmet({ contentSecurityPolicy: { directives: { defaultSrc: ["'self'"], scriptSrc: ["'self'"], styleSrc: ["'self'"], imgSrc: ["'self'", "data:"], connectSrc: ["'self'"] } } }));
   app.use("/api", rateLimit({ windowMs: 60_000, limit: config.environment === "test" ? 10_000 : 240, standardHeaders: "draft-8", legacyHeaders: false }));
   app.use("/api/auth/login", rateLimit({ windowMs: 15 * 60_000, limit: config.environment === "test" ? 10_000 : 10, standardHeaders: "draft-8", legacyHeaders: false }));
-  app.use("/api/chat", rateLimit({ windowMs: 60_000, limit: config.environment === "test" ? 10_000 : 30, standardHeaders: "draft-8", legacyHeaders: false }));
   app.use("/v1", rateLimit({ windowMs: 60_000, limit: config.environment === "test" ? 10_000 : 120, standardHeaders: "draft-8", legacyHeaders: false }));
   app.use("/v1", requireGatewayAuth);
   app.use("/api", express.json({ limit: "256kb", strict: true }));
@@ -379,34 +374,6 @@ export async function createApp(options: CreateAppOptions): Promise<{ app: expre
     }
   });
 
-  app.post("/api/chat", requireAuth, requireCsrf, async (req, res, next) => {
-    try {
-      const body = chatBody.parse(req.body);
-      const provider = db.getProvider();
-      if (!provider) throw new HttpError(409, "PROVIDER_REQUIRED", "Configure an AI provider before chatting");
-      const apiKey = decryptSecret(provider.apiKeyCiphertext, config.encryptionKey);
-      const url = await buildProviderUrl(provider.baseUrl, "chat/completions", providerPolicy);
-      const systemPrompt = composeCompanySystemPrompt(db, body.agentId);
-      const upstream = await fetchImpl(url, {
-        method: "POST",
-        headers: { "authorization": `Bearer ${apiKey}`, "content-type": "application/json", "accept": "application/json" },
-        body: JSON.stringify({ model: provider.model, messages: [{ role: "system", content: systemPrompt }, ...body.messages], stream: false }),
-        redirect: "manual",
-        signal: AbortSignal.timeout(60_000),
-      });
-      if (upstream.status >= 300 && upstream.status < 400) throw new HttpError(502, "PROVIDER_REDIRECT_REJECTED", "Provider redirect was rejected");
-      if (!upstream.ok) throw new HttpError(502, "PROVIDER_ERROR", "The AI provider returned an error");
-      const length = Number(upstream.headers.get("content-length") ?? 0);
-      if (length > 10_000_000) throw new HttpError(502, "PROVIDER_RESPONSE_TOO_LARGE", "Provider response was too large");
-      const payload = await readJsonWithLimit(upstream, 10_000_000);
-      db.audit(req.auth!.id, "CHAT_FORWARD", "PROVIDER_CONFIG", req.auth!.id, { model: provider.model, agentId: body.agentId ?? null });
-      res.json(redactSecret(payload, apiKey));
-    } catch (error) {
-      if (String(error).includes("Selected agent is not accessible")) return next(new HttpError(400, "INVALID_AGENT", "Selected agent is not accessible"));
-      next(error);
-    }
-  });
-
   async function fetchCompanyProvider(endpoint: "responses" | "chat/completions" | "models", body?: Record<string, unknown>): Promise<{ upstream: globalThis.Response; apiKey: string }> {
     const provider = db.getProvider();
     if (!provider) throw new HttpError(503, "PROVIDER_REQUIRED", "The company AI provider is not configured");
@@ -474,8 +441,10 @@ export async function createApp(options: CreateAppOptions): Promise<{ app: expre
       const forwarded: Record<string, unknown> = {
         ...body,
         model: body.model ?? db.getProvider()?.model,
-        instructions: body.instructions ? `${companyInstructions}\n\n[CLIENT INSTRUCTIONS]\n${body.instructions}` : companyInstructions,
       };
+      if (companyInstructions) {
+        forwarded.instructions = body.instructions ? `${companyInstructions}\n\n[CLIENT INSTRUCTIONS]\n${body.instructions}` : companyInstructions;
+      }
       await relayUpstream(req, res, next, "responses", forwarded);
     } catch (error) {
       if (String(error).includes("Selected agent is not accessible")) return next(new HttpError(400, "INVALID_AGENT", "Selected company agent is not accessible"));
@@ -491,7 +460,7 @@ export async function createApp(options: CreateAppOptions): Promise<{ app: expre
       const forwarded: Record<string, unknown> = {
         ...body,
         model: body.model ?? db.getProvider()?.model,
-        messages: [{ role: "system", content: companyInstructions }, ...body.messages],
+        messages: companyInstructions ? [{ role: "system", content: companyInstructions }, ...body.messages] : body.messages,
       };
       await relayUpstream(req, res, next, "chat/completions", forwarded);
     } catch (error) {

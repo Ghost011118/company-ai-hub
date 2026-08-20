@@ -1,4 +1,4 @@
-const state = { user: null, csrfToken: '', capabilities: [], messages: [], pendingDelete: null };
+const state = { user: null, csrfToken: '', capabilities: [], pendingDelete: null };
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
 
@@ -54,8 +54,8 @@ function showApp(session) {
   $('#current-role').textContent = session.user.role === 'ADMIN' ? '管理员' : '成员';
   $('#avatar').textContent = (session.user.displayName || session.user.email).slice(0, 1).toUpperCase();
   $$('[data-admin]').forEach((el) => el.classList.toggle('hidden', session.user.role !== 'ADMIN'));
-  navigate('chat');
-  refreshChatContext();
+  navigate('library');
+  refreshCompanyCapabilities();
   if (session.user.role === 'ADMIN') refreshReviewCount();
 }
 
@@ -64,7 +64,7 @@ async function bootstrap() {
 }
 
 function navigate(page) {
-  const titles = { chat: ['GATEWAY', 'API 调试'], library: ['CONTRIBUTE', '我的能力库'], provider: ['ADMIN', '上游模型'], company: ['ADMIN', '公司能力库'], reviews: ['ADMIN', '投稿审核'], users: ['ADMIN', '员工账号'] };
+  const titles = { library: ['CONTRIBUTE', '我的能力库'], provider: ['ADMIN', '上游模型'], company: ['ADMIN', '公司能力库'], reviews: ['ADMIN', '投稿审核'], users: ['ADMIN', '员工账号'] };
   $$('.page').forEach((el) => el.classList.toggle('active', el.id === `page-${page}`));
   $$('#nav button').forEach((el) => el.classList.toggle('active', el.dataset.page === page));
   $('#page-kicker').textContent = titles[page][0];
@@ -131,6 +131,7 @@ async function loadCapabilities(scope) {
 }
 
 async function openCapability(scope, item = null) {
+  await refreshCompanyCapabilities();
   const form = $('#capability-form');
   form.reset();
   form.elements.scope.value = scope;
@@ -180,7 +181,7 @@ async function saveCapability(event) {
     $('#capability-dialog').close();
     toast('能力已保存');
     await loadCapabilities(payload.scope.toUpperCase());
-    refreshChatContext();
+    refreshCompanyCapabilities();
   } catch (error) { toast(error.message); }
 }
 
@@ -192,7 +193,7 @@ async function deleteCapability(id, scope) {
 async function performDelete() {
   const pending = state.pendingDelete;
   if (!pending) return;
-  try { await api(`/api/capabilities/${pending.id}`, { method: 'DELETE' }); toast('已删除'); loadCapabilities(pending.scope); refreshChatContext(); }
+  try { await api(`/api/capabilities/${pending.id}`, { method: 'DELETE' }); toast('已删除'); loadCapabilities(pending.scope); refreshCompanyCapabilities(); }
   catch (error) { toast(error.message); }
   finally { state.pendingDelete = null; $('#confirm-dialog').close(); }
 }
@@ -248,7 +249,7 @@ async function reviewSubmission(event) {
     await api(`/api/submissions/${id}/review`, { method: 'POST', body: JSON.stringify({ decision, note }) });
     $('#review-dialog').close();
     toast(decision === 'APPROVED' ? '已发布到公司能力库' : '已退回给投稿人');
-    loadSubmissions(); refreshReviewCount(); refreshChatContext();
+    loadSubmissions(); refreshReviewCount(); refreshCompanyCapabilities();
   } catch (error) { toast(error.message); }
 }
 
@@ -280,62 +281,18 @@ async function saveProvider(event) {
   catch (error) { toast(error.message); }
 }
 
-async function refreshChatContext() {
+async function refreshCompanyCapabilities() {
   try {
     const companyData = await api('/api/capabilities?scope=company');
     const items = listFrom(companyData, 'capabilities').map((item) => ({ ...normalizeCapability(item), scope: 'COMPANY' })).filter((item) => item.enabled);
     state.capabilities = items;
-    const select = $('#chat-agent'); select.replaceChildren();
-    const defaultOption = document.createElement('option'); defaultOption.value = ''; defaultOption.textContent = '通用助手'; select.append(defaultOption);
-    for (const agent of items.filter((item) => item.kind === 'AGENT')) { const option = document.createElement('option'); option.value = agent.slug || agent.id; option.textContent = agent.name; select.append(option); }
-    renderInjection();
-  } catch { /* handled when sending */ }
+  } catch { /* capability pages report their own loading errors */ }
 }
 
 function updateCapabilityFields() {
   const kind = $('#capability-form').elements.kind.value;
   $('#skill-binding-field').classList.toggle('hidden', kind !== 'AGENT');
   $('#always-on-field').classList.toggle('hidden', kind === 'AGENT');
-}
-
-function renderInjection() {
-  const selected = $('#chat-agent').value;
-  const active = state.capabilities.filter((item) => item.kind !== 'AGENT' || item.id === selected || item.slug === selected);
-  const container = $('#active-capabilities'); container.replaceChildren();
-  if (!active.length) return empty(container, '暂无启用的公司能力');
-  for (const item of active) {
-    const el = document.createElement('div'); el.className = 'capability-chip';
-    const name = document.createElement('strong'); name.textContent = item.name;
-    const kind = document.createElement('small'); kind.textContent = `${item.kind} · ${item.scope === 'PERSONAL' ? '个人' : '公司'}`;
-    el.append(name, kind); container.append(el);
-  }
-}
-
-function renderMessages() {
-  const container = $('#messages'); container.replaceChildren();
-  if (!state.messages.length) {
-    const welcome = document.createElement('div'); welcome.className = 'welcome-message';
-    const title = document.createElement('h3'); title.textContent = '今天想一起完成什么？';
-    const copy = document.createElement('p'); copy.textContent = '公司的全局 Prompt 和 Skill 会在服务端自动加入。';
-    welcome.append(title, copy); container.append(welcome); return;
-  }
-  for (const message of state.messages) { const el = document.createElement('div'); el.className = `message ${message.role}`; el.textContent = message.content; container.append(el); }
-  container.scrollTop = container.scrollHeight;
-}
-
-async function sendChat(event) {
-  event.preventDefault();
-  const form = event.currentTarget;
-  const content = form.elements.message.value.trim();
-  if (!content) return;
-  state.messages.push({ role: 'user', content }); form.reset(); renderMessages();
-  const send = form.querySelector('button'); send.disabled = true;
-  try {
-    const data = await api('/api/chat', { method: 'POST', body: JSON.stringify({ agentId: $('#chat-agent').value || undefined, messages: state.messages }) });
-    const reply = data.message?.content || data.choices?.[0]?.message?.content || data.content || '模型没有返回文本内容。';
-    state.messages.push({ role: 'assistant', content: reply });
-  } catch (error) { state.messages.push({ role: 'assistant', content: `请求失败：${error.message}` }); }
-  finally { send.disabled = false; renderMessages(); }
 }
 
 async function loadUsers() {
@@ -373,9 +330,6 @@ $$('[data-close-review]').forEach((el) => el.addEventListener('click', () => $('
 $('#confirm-form').addEventListener('submit', (event) => { event.preventDefault(); performDelete(); });
 $$('[data-close-confirm]').forEach((el) => el.addEventListener('click', () => { state.pendingDelete = null; $('#confirm-dialog').close(); }));
 $('#provider-form').addEventListener('submit', saveProvider);
-$('#chat-form').addEventListener('submit', sendChat);
-$('#chat-agent').addEventListener('change', renderInjection);
-$('#clear-chat').addEventListener('click', () => { state.messages = []; renderMessages(); });
 $('#user-form').addEventListener('submit', createUser);
 
 bootstrap();
