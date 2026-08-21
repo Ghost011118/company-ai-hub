@@ -107,6 +107,45 @@ function redactSecret(value: unknown, secret: string): unknown {
   return value;
 }
 
+function createStreamSecretRedactor(secret: string): { write(chunk: Uint8Array): Buffer; end(): Buffer } {
+  const secretBytes = Buffer.from(secret, "utf8");
+  const replacement = Buffer.from("[REDACTED]", "utf8");
+  let pending: Buffer = Buffer.alloc(0);
+
+  const longestSecretPrefixAtEnd = (value: Buffer): number => {
+    for (let length = Math.min(secretBytes.length - 1, value.length); length > 0; length -= 1) {
+      if (value.subarray(value.length - length).equals(secretBytes.subarray(0, length))) return length;
+    }
+    return 0;
+  };
+
+  const redact = (value: Buffer, retainPending: boolean): Buffer => {
+    const chunks: Buffer[] = [];
+    let cursor = 0;
+    while (true) {
+      const match = value.indexOf(secretBytes, cursor);
+      if (match < 0) break;
+      chunks.push(value.subarray(cursor, match), replacement);
+      cursor = match + secretBytes.length;
+    }
+    const remainder = value.subarray(cursor);
+    const pendingLength = retainPending ? longestSecretPrefixAtEnd(remainder) : 0;
+    const safeLength = remainder.length - pendingLength;
+    chunks.push(remainder.subarray(0, safeLength));
+    pending = remainder.subarray(safeLength);
+    return Buffer.concat(chunks);
+  };
+
+  return {
+    write(chunk) {
+      return redact(Buffer.concat([pending, Buffer.from(chunk)]), true);
+    },
+    end() {
+      return redact(pending, false);
+    },
+  };
+}
+
 async function readJsonWithLimit(response: globalThis.Response, limit: number): Promise<unknown> {
   if (!response.body) throw new HttpError(502, "PROVIDER_INVALID_RESPONSE", "Provider returned an empty response");
   const reader = response.body.getReader();
@@ -470,15 +509,19 @@ export async function createApp(options: CreateAppOptions): Promise<{ app: expre
       if (body?.stream === true) {
         if (!upstream.body) throw new HttpError(502, "PROVIDER_INVALID_RESPONSE", "Provider returned an empty response");
         const reader = upstream.body.getReader();
+        const redactor = createStreamSecretRedactor(apiKey);
         res.on("close", () => { if (!res.writableEnded) void reader.cancel(); });
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
-          if (!res.write(Buffer.from(value)) && !(await waitForDrainOrTermination(res, req))) {
+          const output = redactor.write(value);
+          if (output.length > 0 && !res.write(output) && !(await waitForDrainOrTermination(res, req))) {
             await reader.cancel().catch(() => undefined);
             return;
           }
         }
+        const remaining = redactor.end();
+        if (remaining.length > 0 && !res.write(remaining) && !(await waitForDrainOrTermination(res, req))) return;
         res.end();
         return;
       }
