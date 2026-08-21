@@ -186,11 +186,23 @@ export class AppDatabase {
   }
 
   async bootstrapAdmin(config: AppConfig): Promise<void> {
+    if (this.raw.prepare("SELECT 1 FROM users LIMIT 1").get()) return;
     if (!config.adminEmail && !config.adminPassword) return;
     if (!config.adminEmail || !config.adminPassword) throw new Error("ADMIN_EMAIL and ADMIN_PASSWORD must be supplied together");
-    const existing = this.raw.prepare("SELECT id FROM users WHERE email = ?").get(config.adminEmail);
-    if (existing) return;
-    await this.createUser(config.adminEmail, config.adminDisplayName, config.adminPassword, "ADMIN");
+    const passwordHash = await hashPassword(config.adminPassword);
+    this.raw.exec("BEGIN IMMEDIATE");
+    try {
+      if (!this.raw.prepare("SELECT 1 FROM users LIMIT 1").get()) {
+        const id = randomUUID();
+        const now = new Date().toISOString();
+        this.raw.prepare("INSERT INTO users (id, email, display_name, role, password_hash, created_at) VALUES (?, ?, ?, 'ADMIN', ?, ?)")
+          .run(id, config.adminEmail.toLowerCase(), config.adminDisplayName, passwordHash, now);
+      }
+      this.raw.exec("COMMIT");
+    } catch (error) {
+      this.raw.exec("ROLLBACK");
+      throw error;
+    }
   }
 
   async createUser(email: string, displayName: string, password: string, role: Role): Promise<PublicUser> {

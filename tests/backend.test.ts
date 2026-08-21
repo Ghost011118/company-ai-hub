@@ -63,6 +63,14 @@ describe("Company AI Hub backend", () => {
     await admin.post("/api/capabilities?scope=company").set("x-csrf-token", adminCsrf).send(capability).expect(201);
   });
 
+  it("uses startup bootstrap credentials only for an empty user table", async () => {
+    await db.createUser("member@example.com", "Member", memberPassword, "MEMBER");
+    await createApp({ config: testConfig(), database: db });
+    expect(db.listUsers().map((user) => ({ email: user.email, role: user.role }))).toEqual([
+      { email: "member@example.com", role: "MEMBER" },
+    ]);
+  });
+
   it("keeps the web console management-only and exposes no browser chat endpoint", async () => {
     const { app } = await createApp({ config: testConfig(), database: db });
     const page = await request(app).get("/").expect(200);
@@ -359,6 +367,30 @@ describe("Company AI Hub backend", () => {
     const response = await request(app).post("/v1/responses").set("authorization", `Bearer ${gatewayToken}`)
       .send({ input: "Hello", stream: true }).expect(201).expect("content-type", /text\/event-stream/);
     expect(response.text).toBe(sse);
+  });
+
+  it("redacts the provider key from streamed SSE responses, including across chunk boundaries", async () => {
+    const apiKey = "upstream-secret-spanning-sse-chunks";
+    const fetchSpy = vi.fn(async () => {
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(Buffer.from(`data: before ${apiKey.slice(0, 17)}`));
+          controller.enqueue(Buffer.from(`${apiKey.slice(17)} after\n\n`));
+          controller.close();
+        },
+      });
+      return new Response(stream, { status: 200, headers: { "content-type": "text/event-stream" } });
+    });
+    const { app } = await createApp({ config: testConfig(), database: db, fetchImpl: fetchSpy as typeof fetch,
+      resolveProviderHost: async () => ["93.184.216.34"] });
+    const admin = request.agent(app);
+    const csrf = await login(admin, "admin@example.com", adminPassword);
+    await admin.put("/api/provider").set("x-csrf-token", csrf)
+      .send({ baseUrl: "https://api.example.com/v1", model: "example-model", apiKey }).expect(200);
+    const response = await request(app).post("/v1/responses").set("authorization", `Bearer ${gatewayToken}`)
+      .send({ input: "Hello", stream: true }).expect(200).expect("content-type", /text\/event-stream/);
+    expect(response.text).toBe("data: before [REDACTED] after\n\n");
+    expect(response.text).not.toContain(apiKey);
   });
 
   it("ends an SSE backpressure wait when the client connection closes", async () => {
